@@ -91,8 +91,8 @@
     </div>
 
     <script>
-      const CORRECT_PASS = "1166"; 
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbz43C9vjEoTIq2Rwp8GQyVVr-g_gEgltRQcL7ELCwUdeUhI_KFOKDRnZcqchc2ekBlR/exec";
+      const CORRECT_PASS = "りんご"; 
+      const GAS_URL = "ここにデプロイしたGASのURLを貼り付ける";
 
       const authScreen = document.getElementById('auth-screen');
       const appContent = document.getElementById('app-content');
@@ -267,15 +267,15 @@
           let textToDisplay = data.reply;
           let textToSpeak = data.reply;
 
-          // ★ ここにリンクやYouTube、電話を開くコマンド処理を追加しました ★
+          // スマホでも確実に開けるよう、自動で開くのを試みつつ、必ず大きなタップボタンを画面に表示する
           const ytMatch = textToDisplay.match(/\[YOUTUBE:(.*?)\]/);
           if (ytMatch) {
             const keyword = ytMatch[1].trim();
             const ytUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(keyword);
             textToDisplay = textToDisplay.replace(/\[YOUTUBE:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
-            window.open(ytUrl, '_blank');
-            textToDisplay += `<br><br><a href="${ytUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#FF0000; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">▶️ YouTubeで「${keyword}」を見る</a>`;
+            try { window.open(ytUrl, '_blank'); } catch(e){}
+            textToDisplay += `<br><br><a href="${ytUrl}" target="_blank" style="display:block; text-align:center; padding:15px; background:#FF0000; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">▶️ タップしてYouTube（${keyword}）を開く</a>`;
           }
 
           const callMatch = textToDisplay.match(/\[CALL:(.*?)\]/);
@@ -284,8 +284,8 @@
             const callUrl = 'tel:' + phoneNumber;
             textToDisplay = textToDisplay.replace(/\[CALL:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
-            window.location.href = callUrl;
-            textToDisplay += `<br><br><a href="${callUrl}" style="display:inline-block; padding:10px 15px; background:#4CAF50; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">📞 「${phoneNumber}」に発信する</a>`;
+            try { window.location.href = callUrl; } catch(e){}
+            textToDisplay += `<br><br><a href="${callUrl}" style="display:block; text-align:center; padding:15px; background:#4CAF50; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">📞 タップして「${phoneNumber}」に発信する</a>`;
           }
 
           const openMatch = textToDisplay.match(/\[OPEN:(.*?)\]/);
@@ -293,8 +293,8 @@
             const siteUrl = openMatch[1].trim();
             textToDisplay = textToDisplay.replace(/\[OPEN:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
-            window.open(siteUrl, '_blank');
-            textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">🌐 サイトを開く</a>`;
+            try { window.open(siteUrl, '_blank'); } catch(e){}
+            textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:block; text-align:center; padding:15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">🌐 タップしてサイトを開く</a>`;
           }
 
           lastReplyText = textToSpeak;
