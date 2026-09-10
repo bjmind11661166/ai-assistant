@@ -91,8 +91,8 @@
     </div>
 
     <script>
-      const CORRECT_PASS = "1166"; 
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbz43C9vjEoTIq2Rwp8GQyVVr-g_gEgltRQcL7ELCwUdeUhI_KFOKDRnZcqchc2ekBlR/exec";
+      const CORRECT_PASS = "りんご"; 
+      const GAS_URL = "ここにデプロイしたGASのURLを貼り付ける";
 
       const authScreen = document.getElementById('auth-screen');
       const appContent = document.getElementById('app-content');
@@ -267,7 +267,6 @@
           let textToDisplay = data.reply;
           let textToSpeak = data.reply;
 
-          // スマホでも確実に開けるよう、自動で開くのを試みつつ、必ず大きなタップボタンを画面に表示する
           const ytMatch = textToDisplay.match(/\[YOUTUBE:(.*?)\]/);
           if (ytMatch) {
             const keyword = ytMatch[1].trim();
@@ -295,6 +294,11 @@
             textToSpeak = textToDisplay; 
             try { window.open(siteUrl, '_blank'); } catch(e){}
             textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:block; text-align:center; padding:15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">🌐 タップしてサイトを開く</a>`;
+          }
+
+     // 安全なメールのURLやGmailリンクを促す機能
+          if (textToDisplay.includes("⚠️警告")) {
+            textToDisplay = `<span style="color:red; font-weight:bold;">${textToDisplay}</span>`;
           }
 
           lastReplyText = textToSpeak;
