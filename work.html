@@ -1,1 +1,357 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI アシスタント</title>
+    <style>
+      body { font-family: sans-serif; padding: 15px; background-color: #f7f9fa; font-size: 16px; margin: 0; }
+      .container { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; align-items: center;}
+      
+      #auth-screen { width: 100%; max-width: 400px; margin: 80px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; box-sizing: border-box; }
+      #auth-screen h2 { margin-bottom: 15px; color: #333; font-size: 20px; }
+      #pass-input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
+      #pass-btn { width: 100%; padding: 12px; border-radius: 8px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; margin-bottom: 15px; }
+      .divider { margin: 15px 0; color: #888; font-size: 14px; }
+      #voice-auth-btn { width: 100%; padding: 12px; border-radius: 8px; background-color: #4CAF50; color: white; border: none; font-size: 16px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+      #auth-status { margin-top: 15px; font-size: 14px; color: #d32f2f; font-weight: bold; }
+
+      #app-content { display: none; width: 100%; }
+
+      .character-container { margin-bottom: 20px; text-align: center; cursor: pointer; }
+      #character-image { width: 150px; height: 150px; border-radius: 50%; object-fit: cover; border: 4px solid #4CAF50; background-color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: all 0.3s ease; }
+      .thinking { animation: pulse 1s infinite alternate; border-color: #FFC107 !important; }
+      @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 10px rgba(255,193,7,0.5); } 100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,193,7,0.8); } }
+      .speaking { animation: bounce 0.4s infinite alternate; border-color: #2196F3 !important; }
+      @keyframes bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-10px); } }
+      .controls { width: 100%; }
+      
+      #auto-mode-toggle { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; background-color: #9e9e9e; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; transition: background 0.3s;}
+      
+      #industry-select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; background: white; box-sizing: border-box;}
+      .input-area { display: flex; gap: 10px; margin-bottom: 10px; }
+      #file-btn { padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 20px;}
+      #text-input { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
+      #send-btn { padding: 12px 20px; border-radius: 8px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; }
+      #clear-chat-btn { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ffcdd2; background-color: #ffebee; color: #d32f2f; font-size: 14px; cursor: pointer; }
+      #file-preview { display: none; margin-bottom: 15px; font-size: 14px; color: #666; background: #e3f2fd; padding: 10px; border-radius: 8px; width: 100%; box-sizing: border-box;}
+      .chat-box { width: 100%; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; min-height: 200px; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; box-sizing: border-box;}
+      .user-msg { color: #1565C0; font-weight: bold; margin-bottom: 10px; background: #e3f2fd; padding: 10px; border-radius: 8px;}
+      .ai-msg { color: #333; margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 8px; cursor: pointer;}
+    </style>
+  </head>
+  <body>
+
+    <div id="auth-screen">
+      <h2>🔒 合言葉認証</h2>
+      <input type="password" id="pass-input" placeholder="合言葉を入力...">
+      <button id="pass-btn">テキストで入室</button>
+      <div class="divider">または</div>
+      <button id="voice-auth-btn">🎤 声で合言葉を話して入室</button>
+      <div id="auth-status"></div>
+    </div>
+
+    <div class="container" id="app-content">
+      <div class="character-container" id="char-wrap" title="タップするともう一度喋ります">
+        <img id="character-image" src="https://api.dicebear.com/7.x/bottts/svg?seed=Mentor" alt="AIキャラクター">
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">👆タップで音声を再再生</div>
+      </div>
+
+      <div class="controls">
+        <button id="auto-mode-toggle">🎙️ 自動会話モード: OFF（押して開始）</button>
+        
+        <select id="industry-select">
+          <option value="">志望業界を選択（任意）</option>
+          <option value="IT・Web・通信">IT・Web・通信</option>
+          <option value="メーカー（製造業）">メーカー（製造業）</option>
+          <option value="商社">商社</option>
+          <option value="金融・保険">金融・保険</option>
+          <option value="コンサルティング">コンサルティング</option>
+          <option value="サービス・インフラ">サービス・インフラ</option>
+          <option value="マスコミ・エンタメ">マスコミ・エンタメ</option>
+          <option value="公務員・団体">公務員・団体</option>
+        </select>
+        
+        <div class="input-area">
+          <button id="file-btn" title="写真やファイルを添付">📎</button>
+          <input type="file" id="file-input" accept="image/*, application/pdf" style="display: none;">
+          <input type="text" id="text-input" placeholder="テキストを入力...">
+          <button id="send-btn">送信</button>
+        </div>
+
+        <button id="clear-chat-btn">🗑️ トーク履歴をクリア</button>
+
+        <div id="file-preview">
+          📎 <span id="file-name"></span>
+          <button id="clear-file" style="margin-left: 10px; cursor: pointer; border:none; background:none; color:red; font-size: 16px;">❌</button>
+        </div>
+
+        <div id="status" class="chat-box">待機中...</div>
+      </div>
+    </div>
+
+    <script>
+      const CORRECT_PASS = "1166"; 
+      const GAS_URL = "https://script.google.com/macros/s/AKfycbxoxrx6C_G9-4GWi_aZJNo4Av6QBrMQ7e47ooM_YCL9ehZKl-AwPH0owIvEmyscq7pn/exec";
+
+      const authScreen = document.getElementById('auth-screen');
+      const appContent = document.getElementById('app-content');
+      const passInput = document.getElementById('pass-input');
+      const passBtn = document.getElementById('pass-btn');
+      const voiceAuthBtn = document.getElementById('voice-auth-btn');
+      const authStatus = document.getElementById('auth-status');
+
+      passBtn.onclick = () => {
+        if (passInput.value === CORRECT_PASS) {
+          authScreen.style.display = 'none';
+          appContent.style.display = 'flex';
+        } else {
+          authStatus.innerText = "❌ 合言葉が違います";
+        }
+      };
+      passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') passBtn.click(); });
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ja-JP';
+        recognition.interimResults = false;
+        voiceAuthBtn.onclick = () => {
+          authStatus.style.color = "#1565C0";
+          authStatus.innerText = "🎤 聞き取り中...";
+          recognition.start();
+        };
+        recognition.onresult = (event) => {
+          const spokenText = event.results[0][0].transcript.trim();
+          if (spokenText.includes(CORRECT_PASS)) {
+            authScreen.style.display = 'none';
+            appContent.style.display = 'flex';
+          } else {
+            authStatus.style.color = "#d32f2f";
+            authStatus.innerText = `❌ 不一致（認識：「${spokenText}」）`;
+          }
+        };
+      }
+
+      const sendBtn = document.getElementById('send-btn');
+      const textInput = document.getElementById('text-input');
+      const statusBox = document.getElementById('status');
+      const charImg = document.getElementById('character-image');
+      const charWrap = document.getElementById('char-wrap');
+      const industrySelect = document.getElementById('industry-select');
+      const autoModeToggle = document.getElementById('auto-mode-toggle');
+      
+      const fileBtn = document.getElementById('file-btn');
+      const fileInput = document.getElementById('file-input');
+      const filePreview = document.getElementById('file-preview');
+      const fileNameSpan = document.getElementById('file-name');
+      const clearFileBtn = document.getElementById('clear-file');
+      const clearChatBtn = document.getElementById('clear-chat-btn');
+      
+      let lastReplyText = "";
+      let currentFile = null;
+      let isAutoMode = false;
+      let continuousRecognizer = null;
+      let isAiSpeaking = false;
+
+      if (SpeechRecognition) {
+        continuousRecognizer = new SpeechRecognition();
+        continuousRecognizer.lang = 'ja-JP';
+        continuousRecognizer.interimResults = false;
+        continuousRecognizer.continuous = false;
+
+        continuousRecognizer.onresult = (event) => {
+          if (!isAutoMode || isAiSpeaking) return;
+          const speechText = event.results[0][0].transcript.trim();
+          if (speechText && lastReplyText && lastReplyText.includes(speechText)) return;
+          if (speechText) sendMessage(speechText, null, null);
+        };
+
+        continuousRecognizer.onerror = () => {
+          if (isAutoMode && !isAiSpeaking) {
+            setTimeout(() => { try { continuousRecognizer.start(); } catch(e){} }, 1000);
+          }
+        };
+
+        continuousRecognizer.onend = () => {
+          if (isAutoMode && !isAiSpeaking && window.speechSynthesis && !window.speechSynthesis.speaking) {
+            try { continuousRecognizer.start(); } catch(e){}
+          }
+        };
+      }
+
+      autoModeToggle.onclick = () => {
+        if (!SpeechRecognition) {
+          alert("お使いのブラウザは音声認識に対応していません。");
+          return;
+        }
+        isAutoMode = !isAutoMode;
+        if (isAutoMode) {
+          autoModeToggle.style.backgroundColor = "#4CAF50";
+          autoModeToggle.innerText = "🟢 自動会話モード: ON（話しかけてください）";
+          try { continuousRecognizer.start(); } catch(e){}
+        } else {
+          autoModeToggle.style.backgroundColor = "#9e9e9e";
+          autoModeToggle.innerText = "🎙️ 自動会話モード: OFF（押して開始）";
+          isAiSpeaking = false;
+          try { continuousRecognizer.stop(); } catch(e){}
+        }
+      };
+
+      clearChatBtn.onclick = () => {
+        if (confirm("これまでの会話履歴を消去しますか？")) {
+          statusBox.innerHTML = "待機中...";
+          lastReplyText = "";
+        }
+      };
+
+      fileBtn.onclick = () => { fileInput.click(); };
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          currentFile = file;
+          fileNameSpan.innerText = file.name;
+          filePreview.style.display = 'block';
+        }
+      };
+      clearFileBtn.onclick = () => { currentFile = null; fileInput.value = ""; filePreview.style.display = 'none'; };
+      charWrap.onclick = () => { if (lastReplyText) speakText(lastReplyText); };
+
+      sendBtn.onclick = () => {
+        const text = textInput.value.trim();
+        if (text || currentFile) {
+          if (currentFile) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              sendMessage(text, e.target.result.split(',')[1], currentFile.type);
+              clearFileBtn.click();
+            };
+            reader.readAsDataURL(currentFile);
+          } else {
+            sendMessage(text, null, null);
+          }
+          textInput.value = "";
+        }
+      };
+
+      textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendBtn.click();
+      });
+
+      function sendMessage(text, fileData, mimeType) {
+        isAiSpeaking = true;
+        if (isAutoMode) { try { continuousRecognizer.stop(); } catch(e){} }
+
+        if(charImg) charImg.className = 'thinking'; 
+        const userHtml = `<div class="user-msg">あなた：${text}</div>`;
+        const loadingHtml = `<div class="ai-msg" id="loading">AI：考え中...</div>`;
+        statusBox.innerHTML = userHtml + loadingHtml + statusBox.innerHTML;
+
+        fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({ text: text, fileData: fileData, mimeType: mimeType, industry: industrySelect.value }),
+          redirect: 'follow'
+        })
+        .then(response => response.json())
+        .then(data => {
+          const loadingEl = document.getElementById('loading');
+          if(loadingEl) loadingEl.remove();
+          
+          if (!data.success) {
+            statusBox.innerHTML = `<div class="ai-msg" style="color:red;">${data.error}</div>` + statusBox.innerHTML;
+            if(charImg) charImg.className = '';
+            isAiSpeaking = false;
+            return;
+          }
+          
+          let textToDisplay = data.reply;
+          let textToSpeak = data.reply;
+
+          const ytMatch = textToDisplay.match(/\[YOUTUBE:(.*?)\]/);
+          if (ytMatch) {
+            const keyword = ytMatch[1].trim();
+            const ytUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(keyword);
+            textToDisplay = textToDisplay.replace(/\[YOUTUBE:.*?\]/g, '').trim();
+            textToSpeak = textToDisplay; 
+            try { window.open(ytUrl, '_blank'); } catch(e){}
+            textToDisplay += `<br><br><a href="${ytUrl}" target="_blank" style="display:block; text-align:center; padding:15px; background:#FF0000; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">▶️ タップしてYouTube（${keyword}）を開く</a>`;
+          }
+
+          const callMatch = textToDisplay.match(/\[CALL:(.*?)\]/);
+          if (callMatch) {
+            const phoneNumber = callMatch[1].trim();
+            const callUrl = 'tel:' + phoneNumber;
+            textToDisplay = textToDisplay.replace(/\[CALL:.*?\]/g, '').trim();
+            textToSpeak = textToDisplay; 
+            try { window.location.href = callUrl; } catch(e){}
+            textToDisplay += `<br><br><a href="${callUrl}" style="display:block; text-align:center; padding:15px; background:#4CAF50; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">📞 タップして「${phoneNumber}」に発信する</a>`;
+          }
+
+          const openMatch = textToDisplay.match(/\[OPEN:(.*?)\]/);
+          if (openMatch) {
+            const siteUrl = openMatch[1].trim();
+            textToDisplay = textToDisplay.replace(/\[OPEN:.*?\]/g, '').trim();
+            textToSpeak = textToDisplay; 
+            try { window.open(siteUrl, '_blank'); } catch(e){}
+            textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:block; text-align:center; padding:15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">🌐 タップしてサイトを開く</a>`;
+          }
+
+     // 安全なメールのURLやGmailリンクを促す機能
+          if (textToDisplay.includes("⚠️警告")) {
+            textToDisplay = `<span style="color:red; font-weight:bold;">${textToDisplay}</span>`;
+          }
+
+          lastReplyText = textToSpeak;
+          statusBox.innerHTML = `<div class="ai-msg">AI：${textToDisplay}</div>` + statusBox.innerHTML;
+          
+          speakText(textToSpeak);
+        })
+        .catch(() => {
+          const loadingEl = document.getElementById('loading');
+          if(loadingEl) loadingEl.remove();
+          statusBox.innerHTML = `<div class="ai-msg" style="color:red;">通信エラーが発生しました。</div>` + statusBox.innerHTML;
+          if(charImg) charImg.className = '';
+          isAiSpeaking = false;
+        });
+      }
+
+      function speakText(text) {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const cleanText = text.replace(/[\u{1f300}-\u{1f5ff}\u{1f600}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{2600}-\u{26ff}\u{2700}-\u{27bf}\u{1f900}-\u{1f9ff}\u{1fa70}-\u{1faff}\u{00a0}-\u{2600}]/gu, '');
+          const uttr = new SpeechSynthesisUtterance(cleanText);
+          uttr.lang = 'ja-JP';
+          uttr.rate = 1.1;
+          
+          uttr.onstart = () => { 
+            isAiSpeaking = true;
+            if(charImg) charImg.className = 'speaking'; 
+          };
+          
+          uttr.onend = () => { 
+            if(charImg) charImg.className = ''; 
+            setTimeout(() => {
+              isAiSpeaking = false;
+              if (isAutoMode) {
+                try { continuousRecognizer.start(); } catch(e){}
+              }
+            }, 800);
+          };
+          
+          uttr.onerror = () => { 
+            if(charImg) charImg.className = ''; 
+            isAiSpeaking = false;
+            if (isAutoMode) {
+              try { continuousRecognizer.start(); } catch(e){}
+            }
+          };
+          window.speechSynthesis.speak(uttr);
+        } else {
+          isAiSpeaking = false;
+          if(charImg) charImg.className = '';
+        }
+      }
+    </script>
+  </body>
+</html>
 
