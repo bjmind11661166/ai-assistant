@@ -91,8 +91,8 @@
     </div>
 
     <script>
-      const CORRECT_PASS = "1166"; 
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbz43C9vjEoTIq2Rwp8GQyVVr-g_gEgltRQcL7ELCwUdeUhI_KFOKDRnZcqchc2ekBlR/exec";
+      const CORRECT_PASS = "りんご"; 
+      const GAS_URL = "ここにデプロイしたGASのURLを貼り付ける";
 
       const authScreen = document.getElementById('auth-screen');
       const appContent = document.getElementById('app-content');
@@ -152,7 +152,7 @@
       let currentFile = null;
       let isAutoMode = false;
       let continuousRecognizer = null;
-      let isAiSpeaking = false; // AIが喋っているかどうかを管理するフラグ
+      let isAiSpeaking = false;
 
       if (SpeechRecognition) {
         continuousRecognizer = new SpeechRecognition();
@@ -161,19 +161,10 @@
         continuousRecognizer.continuous = false;
 
         continuousRecognizer.onresult = (event) => {
-          // AIが話している最中、または自動モードOFFなら入力を無視
           if (!isAutoMode || isAiSpeaking) return;
-          
           const speechText = event.results[0][0].transcript.trim();
-          
-          // AIが直前に話した内容と酷似している場合は、自分の声ではなくAIのスピーカー音を拾ったと判定して無視
-          if (speechText && lastReplyText && lastReplyText.includes(speechText)) {
-            return;
-          }
-
-          if (speechText) {
-            sendMessage(speechText, null, null);
-          }
+          if (speechText && lastReplyText && lastReplyText.includes(speechText)) return;
+          if (speechText) sendMessage(speechText, null, null);
         };
 
         continuousRecognizer.onerror = () => {
@@ -183,7 +174,6 @@
         };
 
         continuousRecognizer.onend = () => {
-          // 自動モードONかつAIが喋っていない場合のみ、再度聞き取りを再開
           if (isAutoMode && !isAiSpeaking && window.speechSynthesis && !window.speechSynthesis.speaking) {
             try { continuousRecognizer.start(); } catch(e){}
           }
@@ -249,7 +239,6 @@
       });
 
       function sendMessage(text, fileData, mimeType) {
-        // 音声認識を一時停止し、AIが喋り出すフラグを立てる
         isAiSpeaking = true;
         if (isAutoMode) { try { continuousRecognizer.stop(); } catch(e){} }
 
@@ -278,6 +267,7 @@
           let textToDisplay = data.reply;
           let textToSpeak = data.reply;
 
+          // ★ ここにリンクやYouTube、電話を開くコマンド処理を追加しました ★
           const ytMatch = textToDisplay.match(/\[YOUTUBE:(.*?)\]/);
           if (ytMatch) {
             const keyword = ytMatch[1].trim();
@@ -285,14 +275,17 @@
             textToDisplay = textToDisplay.replace(/\[YOUTUBE:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
             window.open(ytUrl, '_blank');
+            textToDisplay += `<br><br><a href="${ytUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#FF0000; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">▶️ YouTubeで「${keyword}」を見る</a>`;
           }
 
           const callMatch = textToDisplay.match(/\[CALL:(.*?)\]/);
           if (callMatch) {
             const phoneNumber = callMatch[1].trim();
+            const callUrl = 'tel:' + phoneNumber;
             textToDisplay = textToDisplay.replace(/\[CALL:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
-            window.location.href = 'tel:' + phoneNumber;
+            window.location.href = callUrl;
+            textToDisplay += `<br><br><a href="${callUrl}" style="display:inline-block; padding:10px 15px; background:#4CAF50; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">📞 「${phoneNumber}」に発信する</a>`;
           }
 
           const openMatch = textToDisplay.match(/\[OPEN:(.*?)\]/);
@@ -301,6 +294,7 @@
             textToDisplay = textToDisplay.replace(/\[OPEN:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
             window.open(siteUrl, '_blank');
+            textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">🌐 サイトを開く</a>`;
           }
 
           lastReplyText = textToSpeak;
@@ -332,7 +326,6 @@
           
           uttr.onend = () => { 
             if(charImg) charImg.className = ''; 
-            // AIが喋り終わって少し待ってから、リスニングを再開
             setTimeout(() => {
               isAiSpeaking = false;
               if (isAutoMode) {
