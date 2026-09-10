@@ -8,35 +8,33 @@
       body { font-family: sans-serif; padding: 15px; background-color: #f7f9fa; font-size: 16px; margin: 0; }
       .container { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; align-items: center;}
       
-      /* 認証画面のスタイル */
       #auth-screen { width: 100%; max-width: 400px; margin: 80px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; box-sizing: border-box; }
       #auth-screen h2 { margin-bottom: 15px; color: #333; font-size: 20px; }
       #pass-input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
       #pass-btn { width: 100%; padding: 12px; border-radius: 8px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; margin-bottom: 15px; }
-      .divider { margin: 15px 0; color: #888; font-size: 14px; position: relative; }
+      .divider { margin: 15px 0; color: #888; font-size: 14px; }
       #voice-auth-btn { width: 100%; padding: 12px; border-radius: 8px; background-color: #4CAF50; color: white; border: none; font-size: 16px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
       #auth-status { margin-top: 15px; font-size: 14px; color: #d32f2f; font-weight: bold; }
 
-      /* メインアプリ画面（最初は非表示） */
       #app-content { display: none; width: 100%; }
 
       .character-container { margin-bottom: 20px; text-align: center; cursor: pointer; }
       #character-image { width: 150px; height: 150px; border-radius: 50%; object-fit: cover; border: 4px solid #4CAF50; background-color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: all 0.3s ease; }
-      #character-image:hover { transform: scale(1.03); }
       .thinking { animation: pulse 1s infinite alternate; border-color: #FFC107 !important; }
       @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 10px rgba(255,193,7,0.5); } 100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,193,7,0.8); } }
       .speaking { animation: bounce 0.4s infinite alternate; border-color: #2196F3 !important; }
       @keyframes bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-10px); } }
       .controls { width: 100%; }
-      #mic-btn { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; background-color: #4CAF50; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px;}
-      #mic-btn:active { background-color: #45a049; }
+      
+      /* 自動会話モード用の切り替えボタン */
+      #auto-mode-toggle { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; background-color: #9e9e9e; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; transition: background 0.3s;}
+      
       #industry-select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; background: white; box-sizing: border-box;}
       .input-area { display: flex; gap: 10px; margin-bottom: 10px; }
       #file-btn { padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 20px;}
       #text-input { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
       #send-btn { padding: 12px 20px; border-radius: 8px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; }
-      #clear-chat-btn { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ffcdd2; background-color: #ffebee; color: #d32f2f; font-size: 14px; cursor: pointer; transition: background 0.2s; }
-      #clear-chat-btn:hover { background-color: #ffcdd2; }
+      #clear-chat-btn { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ffcdd2; background-color: #ffebee; color: #d32f2f; font-size: 14px; cursor: pointer; }
       #file-preview { display: none; margin-bottom: 15px; font-size: 14px; color: #666; background: #e3f2fd; padding: 10px; border-radius: 8px; width: 100%; box-sizing: border-box;}
       .chat-box { width: 100%; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; min-height: 200px; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; box-sizing: border-box;}
       .user-msg { color: #1565C0; font-weight: bold; margin-bottom: 10px; background: #e3f2fd; padding: 10px; border-radius: 8px;}
@@ -45,23 +43,15 @@
   </head>
   <body>
 
-    <!-- 認証画面（テキスト入力 ＆ 音声入力の両対応） -->
     <div id="auth-screen">
       <h2>🔒 合言葉認証</h2>
-      
-      <!-- テキスト入力エリア -->
       <input type="password" id="pass-input" placeholder="合言葉を入力...">
       <button id="pass-btn">テキストで入室</button>
-
       <div class="divider">または</div>
-
-      <!-- 音声入力エリア -->
       <button id="voice-auth-btn">🎤 声で合言葉を話して入室</button>
-      
       <div id="auth-status"></div>
     </div>
 
-    <!-- メインのチャットアプリ画面 -->
     <div class="container" id="app-content">
       <div class="character-container" id="char-wrap" title="タップするともう一度喋ります">
         <img id="character-image" src="https://api.dicebear.com/7.x/bottts/svg?seed=Mentor" alt="AIキャラクター">
@@ -69,7 +59,8 @@
       </div>
 
       <div class="controls">
-        <button id="mic-btn">🎤 音声で話しかける（録音）</button>
+        <!-- 自動会話モードボタン -->
+        <button id="auto-mode-toggle">🎙️ 自動会話モード: OFF（押して開始）</button>
         
         <select id="industry-select">
           <option value="">志望業界を選択（任意）</option>
@@ -97,16 +88,13 @@
           <button id="clear-file" style="margin-left: 10px; cursor: pointer; border:none; background:none; color:red; font-size: 16px;">❌</button>
         </div>
 
-        <div id="status" class="chat-box">待機中...マイクボタンを押して話し、もう一度押すと送信されます。</div>
+        <div id="status" class="chat-box">待機中...「自動会話モード」をONにすると、話すだけで自動で会話が続きます。</div>
       </div>
     </div>
 
     <script>
-      // ==========================================
-      // ★ 合言葉とGASのURLを設定してください ★
-      // ==========================================
-      const CORRECT_PASS = "1166"; // 共通の合言葉
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbz43C9vjEoTIq2Rwp8GQyVVr-g_gEgltRQcL7ELCwUdeUhI_KFOKDRnZcqchc2ekBlR/exec";
+      const CORRECT_PASS = "りんご"; 
+      const GAS_URL = "ここにデプロイしたGASのURLを貼り付ける";
 
       const authScreen = document.getElementById('auth-screen');
       const appContent = document.getElementById('app-content');
@@ -115,7 +103,6 @@
       const voiceAuthBtn = document.getElementById('voice-auth-btn');
       const authStatus = document.getElementById('auth-status');
 
-      // 1. テキスト入力での認証
       passBtn.onclick = () => {
         if (passInput.value === CORRECT_PASS) {
           authScreen.style.display = 'none';
@@ -124,16 +111,11 @@
           authStatus.innerText = "❌ 合言葉が違います";
         }
       };
+      passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') passBtn.click(); });
 
-      passInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') passBtn.click();
-      });
-
-      // 2. 音声入力での認証
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
       if (!SpeechRecognition) {
-        voiceAuthBtn.style.display = 'none'; // 非対応ブラウザでは音声ボタンを隠す
+        voiceAuthBtn.style.display = 'none';
       } else {
         const recognition = new SpeechRecognition();
         recognition.lang = 'ja-JP';
@@ -147,30 +129,24 @@
 
         recognition.onresult = (event) => {
           const spokenText = event.results[0][0].transcript.trim();
-          authStatus.style.color = "#d32f2f";
-
           if (spokenText.includes(CORRECT_PASS)) {
             authScreen.style.display = 'none';
             appContent.style.display = 'flex';
           } else {
+            authStatus.style.color = "#d32f2f";
             authStatus.innerText = `❌ 不一致（認識：「${spokenText}」）`;
           }
         };
-
-        recognition.onerror = () => {
-          authStatus.style.color = "#d32f2f";
-          authStatus.innerText = "⚠️ 音声の認識に失敗しました。";
-        };
       }
 
-      // 以下、既存のアプリの処理
-      const micBtn = document.getElementById('mic-btn');
+      // アプリ本編のロジック
       const sendBtn = document.getElementById('send-btn');
       const textInput = document.getElementById('text-input');
       const statusBox = document.getElementById('status');
       const charImg = document.getElementById('character-image');
       const charWrap = document.getElementById('char-wrap');
       const industrySelect = document.getElementById('industry-select');
+      const autoModeToggle = document.getElementById('auto-mode-toggle');
       
       const fileBtn = document.getElementById('file-btn');
       const fileInput = document.getElementById('file-input');
@@ -181,13 +157,56 @@
       
       let lastReplyText = "";
       let currentFile = null;
-      let mediaRecorder = null;
-      let audioChunks = [];
-      let isRecording = false;
+      let isAutoMode = false;
+      let continuousRecognizer = null;
+
+      if (SpeechRecognition) {
+        continuousRecognizer = new SpeechRecognition();
+        continuousRecognizer.lang = 'ja-JP';
+        continuousRecognizer.interimResults = false;
+
+        continuousRecognizer.onresult = (event) => {
+          if (!isAutoMode) return;
+          const speechText = event.results[0][0].transcript.trim();
+          if (speechText) {
+            sendMessage(speechText, null, null);
+          }
+        };
+
+        continuousRecognizer.onerror = () => {
+          if (isAutoMode) {
+            setTimeout(() => { try { continuousRecognizer.start(); } catch(e){} }, 1000);
+          }
+        };
+
+        continuousRecognizer.onend = () => {
+          // AIが話しておらず、自動モードがONなら再度聞き取りを開始
+          if (isAutoMode && window.speechSynthesis && !window.speechSynthesis.speaking) {
+            try { continuousRecognizer.start(); } catch(e){}
+          }
+        };
+      }
+
+      autoModeToggle.onclick = () => {
+        if (!SpeechRecognition) {
+          alert("お使いのブラウザは音声認識に対応していません。");
+          return;
+        }
+        isAutoMode = !isAutoMode;
+        if (isAutoMode) {
+          autoModeToggle.style.backgroundColor = "#4CAF50";
+          autoModeToggle.innerText = "🟢 自動会話モード: ON（話しかけてください）";
+          try { continuousRecognizer.start(); } catch(e){}
+        } else {
+          autoModeToggle.style.backgroundColor = "#9e9e9e";
+          autoModeToggle.innerText = "🎙️ 自動会話モード: OFF（押して開始）";
+          try { continuousRecognizer.stop(); } catch(e){}
+        }
+      };
 
       clearChatBtn.onclick = () => {
         if (confirm("これまでの会話履歴を消去しますか？")) {
-          statusBox.innerHTML = "待機中...マイクボタンを押して話し、もう一度押すと送信されます。";
+          statusBox.innerHTML = "待機中...";
           lastReplyText = "";
         }
       };
@@ -196,22 +215,12 @@
       fileInput.onchange = (e) => {
         const file = e.target.files[0];
         if (file) {
-          if (file.size > 10 * 1024 * 1024) { 
-            alert("ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。");
-            fileInput.value = "";
-            return;
-          }
           currentFile = file;
           fileNameSpan.innerText = file.name;
           filePreview.style.display = 'block';
         }
       };
-      clearFileBtn.onclick = () => {
-        currentFile = null;
-        fileInput.value = "";
-        filePreview.style.display = 'none';
-      };
-
+      clearFileBtn.onclick = () => { currentFile = null; fileInput.value = ""; filePreview.style.display = 'none'; };
       charWrap.onclick = () => { if (lastReplyText) speakText(lastReplyText); };
 
       sendBtn.onclick = () => {
@@ -220,8 +229,7 @@
           if (currentFile) {
             const reader = new FileReader();
             reader.onload = function(e) {
-              const base64String = e.target.result.split(',')[1];
-              sendMessage(text, base64String, currentFile.type);
+              sendMessage(text, e.target.result.split(',')[1], currentFile.type);
               clearFileBtn.click();
             };
             reader.readAsDataURL(currentFile);
@@ -233,67 +241,21 @@
       };
 
       textInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.keyCode === 13) {
-          e.preventDefault();
-          sendBtn.click();
-        }
+        if (e.key === 'Enter') sendBtn.click();
       });
 
-      micBtn.onclick = async () => {
-        if (!isRecording) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
-
-            mediaRecorder.onstop = () => {
-              const audioBlob = new Blob(audioChunks); 
-              const reader = new FileReader();
-              reader.onload = function(e) {
-                const base64String = e.target.result.split(',')[1];
-                sendMessage("（音声メッセージ）", base64String, audioBlob.type || "audio/webm");
-              };
-              reader.readAsDataURL(audioBlob);
-              stream.getTracks().forEach(track => track.stop());
-            };
-
-            mediaRecorder.start();
-            isRecording = true;
-            micBtn.style.backgroundColor = "#ff9800";
-            micBtn.innerText = "⏹️ 録音中...（もう一度押すと送信）";
-            statusBox.innerHTML = "<div style='color: #4CAF50; font-weight:bold;'>🎤 録音しています...話し終わったらもう一度マイクボタンを押してください</div>" + statusBox.innerHTML;
-          } catch (err) {
-            alert("マイクへのアクセスが許可されていないか、利用できません。");
-            console.error(err);
-          }
-        } else {
-          mediaRecorder.stop();
-          isRecording = false;
-          micBtn.style.backgroundColor = "#4CAF50";
-          micBtn.innerText = "🎤 音声で話しかける（録音）";
-        }
-      };
-
       function sendMessage(text, fileData, mimeType) {
+        // 音声認識中であれば一時停止
+        if (isAutoMode) { try { continuousRecognizer.stop(); } catch(e){} }
+
         if(charImg) charImg.className = 'thinking'; 
-        
-        const displayMsg = text + (fileData && !mimeType.startsWith("audio/") ? "（※ファイルを添付）" : "");
-        const userHtml = `<div class="user-msg">あなた：${displayMsg}</div>`;
+        const userHtml = `<div class="user-msg">あなた：${text}</div>`;
         const loadingHtml = `<div class="ai-msg" id="loading">AI：考え中...</div>`;
         statusBox.innerHTML = userHtml + loadingHtml + statusBox.innerHTML;
 
-        const payload = {
-          text: text,
-          fileData: fileData,
-          mimeType: mimeType,
-          industry: industrySelect.value
-        };
-
         fetch(GAS_URL, {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ text: text, fileData: fileData, mimeType: mimeType, industry: industrySelect.value }),
           redirect: 'follow'
         })
         .then(response => response.json())
@@ -310,6 +272,7 @@
           let textToDisplay = data.reply;
           let textToSpeak = data.reply;
 
+          // 各種コマンド処理
           const ytMatch = textToDisplay.match(/\[YOUTUBE:(.*?)\]/);
           if (ytMatch) {
             const keyword = ytMatch[1].trim();
@@ -317,17 +280,15 @@
             textToDisplay = textToDisplay.replace(/\[YOUTUBE:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
             window.open(ytUrl, '_blank');
-            textToDisplay += `<br><br><a href="${ytUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#FF0000; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">▶️ YouTubeで「${keyword}」を見る</a>`;
+            textToDisplay += `<br><br><a href="${ytUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#FF0000; color:white; text-decoration:none; border-radius:8px;">▶️ YouTubeで見る</a>`;
           }
 
           const callMatch = textToDisplay.match(/\[CALL:(.*?)\]/);
           if (callMatch) {
             const phoneNumber = callMatch[1].trim();
-            const callUrl = 'tel:' + phoneNumber;
             textToDisplay = textToDisplay.replace(/\[CALL:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
-            window.location.href = callUrl;
-            textToDisplay += `<br><br><a href="${callUrl}" style="display:inline-block; padding:10px 15px; background:#4CAF50; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">📞 「${phoneNumber}」に発信する</a>`;
+            window.location.href = 'tel:' + phoneNumber;
           }
 
           const openMatch = textToDisplay.match(/\[OPEN:(.*?)\]/);
@@ -336,7 +297,6 @@
             textToDisplay = textToDisplay.replace(/\[OPEN:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
             window.open(siteUrl, '_blank');
-            textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">🌐 サイトを開く</a>`;
           }
 
           lastReplyText = textToSpeak;
@@ -344,7 +304,7 @@
           
           speakText(textToSpeak);
         })
-        .catch((error) => {
+        .catch(() => {
           const loadingEl = document.getElementById('loading');
           if(loadingEl) loadingEl.remove();
           statusBox.innerHTML = `<div class="ai-msg" style="color:red;">通信エラーが発生しました。</div>` + statusBox.innerHTML;
@@ -359,9 +319,19 @@
           const uttr = new SpeechSynthesisUtterance(cleanText);
           uttr.lang = 'ja-JP';
           uttr.rate = 1.1;
+          
           uttr.onstart = () => { if(charImg) charImg.className = 'speaking'; };
-          uttr.onend = () => { if(charImg) charImg.className = ''; };
-          uttr.onerror = () => { if(charImg) charImg.className = ''; };
+          uttr.onend = () => { 
+            if(charImg) charImg.className = ''; 
+            // AIが話し終わったら、自動モードがONなら再度マイク入力を再開
+            if (isAutoMode) {
+              setTimeout(() => { try { continuousRecognizer.start(); } catch(e){} }, 500);
+            }
+          };
+          uttr.onerror = () => { 
+            if(charImg) charImg.className = ''; 
+            if (isAutoMode) { try { continuousRecognizer.start(); } catch(e){} }
+          };
           window.speechSynthesis.speak(uttr);
         } else {
           if(charImg) charImg.className = '';
