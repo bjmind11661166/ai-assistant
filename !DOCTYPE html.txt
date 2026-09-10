@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI アシスタント</title>
+    <style>
+      body { font-family: sans-serif; padding: 15px; background-color: #f7f9fa; font-size: 16px; margin: 0; }
+      .container { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; align-items: center;}
+      .character-container { margin-bottom: 20px; text-align: center; cursor: pointer; }
+      #character-image { width: 150px; height: 150px; border-radius: 50%; object-fit: cover; border: 4px solid #4CAF50; background-color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: all 0.3s ease; }
+      #character-image:hover { transform: scale(1.03); }
+      .thinking { animation: pulse 1s infinite alternate; border-color: #FFC107 !important; }
+      @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 10px rgba(255,193,7,0.5); } 100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,193,7,0.8); } }
+      .speaking { animation: bounce 0.4s infinite alternate; border-color: #2196F3 !important; }
+      @keyframes bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-10px); } }
+      .controls { width: 100%; }
+      #mic-btn { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; background-color: #4CAF50; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px;}
+      #mic-btn:active { background-color: #45a049; }
+      #industry-select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; background: white; box-sizing: border-box;}
+      .input-area { display: flex; gap: 10px; margin-bottom: 10px; }
+      #file-btn { padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 20px;}
+      #text-input { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
+      #send-btn { padding: 12px 20px; border-radius: 8px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; }
+      #clear-chat-btn { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ffcdd2; background-color: #ffebee; color: #d32f2f; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+      #clear-chat-btn:hover { background-color: #ffcdd2; }
+      #file-preview { display: none; margin-bottom: 15px; font-size: 14px; color: #666; background: #e3f2fd; padding: 10px; border-radius: 8px; width: 100%; box-sizing: border-box;}
+      .chat-box { width: 100%; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; min-height: 200px; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; box-sizing: border-box;}
+      .user-msg { color: #1565C0; font-weight: bold; margin-bottom: 10px; background: #e3f2fd; padding: 10px; border-radius: 8px;}
+      .ai-msg { color: #333; margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 8px; cursor: pointer;}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="character-container" id="char-wrap" title="タップするともう一度喋ります">
+        <img id="character-image" src="https://api.dicebear.com/7.x/bottts/svg?seed=Mentor" alt="AIキャラクター">
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">👆タップで音声を再再生</div>
+      </div>
+
+      <div class="controls">
+        <button id="mic-btn">🎤 音声で話しかける（録音）</button>
+        
+        <select id="industry-select">
+          <option value="">志望業界を選択（任意）</option>
+          <option value="IT・Web・通信">IT・Web・通信</option>
+          <option value="メーカー（製造業）">メーカー（製造業）</option>
+          <option value="商社">商社</option>
+          <option value="金融・保険">金融・保険</option>
+          <option value="コンサルティング">コンサルティング</option>
+          <option value="サービス・インフラ">サービス・インフラ</option>
+          <option value="マスコミ・エンタメ">マスコミ・エンタメ</option>
+          <option value="公務員・団体">公務員・団体</option>
+        </select>
+        
+        <div class="input-area">
+          <button id="file-btn" title="写真やファイルを添付">📎</button>
+          <input type="file" id="file-input" accept="image/*, application/pdf" style="display: none;">
+          <input type="text" id="text-input" placeholder="テキストを入力...">
+          <button id="send-btn">送信</button>
+        </div>
+
+        <button id="clear-chat-btn">🗑️ トーク履歴をクリア</button>
+
+        <div id="file-preview">
+          📎 <span id="file-name"></span>
+          <button id="clear-file" style="margin-left: 10px; cursor: pointer; border:none; background:none; color:red; font-size: 16px;">❌</button>
+        </div>
+
+        <div id="status" class="chat-box">待機中...マイクボタンを押して話し、もう一度押すと送信されます。</div>
+      </div>
+    </div>
+
+    <script>
+      // ==============================================================
+      // ★手順2でコピーしたGASのウェブアプリURLを以下の "" の中に貼り付けてください★
+      // ==============================================================
+      const GAS_URL = "https://script.google.com/macros/s/AKfycbz43C9vjEoTIq2Rwp8GQyVVr-g_gEgltRQcL7ELCwUdeUhI_KFOKDRnZcqchc2ekBlR/exec";
+
+      const micBtn = document.getElementById('mic-btn');
+      const sendBtn = document.getElementById('send-btn');
+      const textInput = document.getElementById('text-input');
+      const statusBox = document.getElementById('status');
+      const charImg = document.getElementById('character-image');
+      const charWrap = document.getElementById('char-wrap');
+      const industrySelect = document.getElementById('industry-select');
+      
+      const fileBtn = document.getElementById('file-btn');
+      const fileInput = document.getElementById('file-input');
+      const filePreview = document.getElementById('file-preview');
+      const fileNameSpan = document.getElementById('file-name');
+      const clearFileBtn = document.getElementById('clear-file');
+      const clearChatBtn = document.getElementById('clear-chat-btn');
+      
+      let lastReplyText = "";
+      let currentFile = null;
+      let mediaRecorder = null;
+      let audioChunks = [];
+      let isRecording = false;
+
+      clearChatBtn.onclick = () => {
+        if (confirm("これまでの会話履歴を消去しますか？")) {
+          statusBox.innerHTML = "待機中...マイクボタンを押して話し、もう一度押すと送信されます。";
+          lastReplyText = "";
+        }
+      };
+
+      fileBtn.onclick = () => { fileInput.click(); };
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          if (file.size > 10 * 1024 * 1024) { 
+            alert("ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。");
+            fileInput.value = "";
+            return;
+          }
+          currentFile = file;
+          fileNameSpan.innerText = file.name;
+          filePreview.style.display = 'block';
+        }
+      };
+      clearFileBtn.onclick = () => {
+        currentFile = null;
+        fileInput.value = "";
+        filePreview.style.display = 'none';
+      };
+
+      charWrap.onclick = () => { if (lastReplyText) speakText(lastReplyText); };
+
+      sendBtn.onclick = () => {
+        const text = textInput.value.trim();
+        if (text || currentFile) {
+          if (currentFile) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              const base64String = e.target.result.split(',')[1];
+              sendMessage(text, base64String, currentFile.type);
+              clearFileBtn.click();
+            };
+            reader.readAsDataURL(currentFile);
+          } else {
+            sendMessage(text, null, null);
+          }
+          textInput.value = "";
+        }
+      };
+
+      textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+          e.preventDefault();
+          sendBtn.click();
+        }
+      });
+
+      micBtn.onclick = async () => {
+        if (!isRecording) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
+
+            mediaRecorder.onstop = () => {
+              const audioBlob = new Blob(audioChunks); 
+              const reader = new FileReader();
+              reader.onload = function(e) {
+                const base64String = e.target.result.split(',')[1];
+                sendMessage("（音声メッセージ）", base64String, audioBlob.type || "audio/webm");
+              };
+              reader.readAsDataURL(audioBlob);
+              stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            micBtn.style.backgroundColor = "#ff9800";
+            micBtn.innerText = "⏹️ 録音中...（もう一度押すと送信）";
+            statusBox.innerHTML = "<div style='color: #4CAF50; font-weight:bold;'>🎤 録音しています...話し終わったらもう一度マイクボタンを押してください</div>" + statusBox.innerHTML;
+          } catch (err) {
+            alert("マイクへのアクセスが許可されていないか、利用できません。");
+            console.error(err);
+          }
+        } else {
+          mediaRecorder.stop();
+          isRecording = false;
+          micBtn.style.backgroundColor = "#4CAF50";
+          micBtn.innerText = "🎤 音声で話しかける（録音）";
+        }
+      };
+
+      // ★ google.script.run の代わりに fetch API を使ってGASにデータを送信する処理に変更
+      function sendMessage(text, fileData, mimeType) {
+        if(charImg) charImg.className = 'thinking'; 
+        
+        const displayMsg = text + (fileData && !mimeType.startsWith("audio/") ? "（※ファイルを添付）" : "");
+        const userHtml = `<div class="user-msg">あなた：${displayMsg}</div>`;
+        const loadingHtml = `<div class="ai-msg" id="loading">AI：考え中...</div>`;
+        statusBox.innerHTML = userHtml + loadingHtml + statusBox.innerHTML;
+
+        const payload = {
+          text: text,
+          fileData: fileData,
+          mimeType: mimeType,
+          industry: industrySelect.value
+        };
+
+        fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          redirect: 'follow'
+        })
+        .then(response => response.json())
+        .then(data => {
+          const loadingEl = document.getElementById('loading');
+          if(loadingEl) loadingEl.remove();
+          
+          if (!data.success) {
+            statusBox.innerHTML = `<div class="ai-msg" style="color:red;">${data.error}</div>` + statusBox.innerHTML;
+            if(charImg) charImg.className = '';
+            return;
+          }
+          
+          let textToDisplay = data.reply;
+          let textToSpeak = data.reply;
+
+          const ytMatch = textToDisplay.match(/\[YOUTUBE:(.*?)\]/);
+          if (ytMatch) {
+            const keyword = ytMatch[1].trim();
+            const ytUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(keyword);
+            textToDisplay = textToDisplay.replace(/\[YOUTUBE:.*?\]/g, '').trim();
+            textToSpeak = textToDisplay; 
+            window.open(ytUrl, '_blank');
+            textToDisplay += `<br><br><a href="${ytUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#FF0000; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">▶️ YouTubeで「${keyword}」を見る</a>`;
+          }
+
+          const callMatch = textToDisplay.match(/\[CALL:(.*?)\]/);
+          if (callMatch) {
+            const phoneNumber = callMatch[1].trim();
+            const callUrl = 'tel:' + phoneNumber;
+            textToDisplay = textToDisplay.replace(/\[CALL:.*?\]/g, '').trim();
+            textToSpeak = textToDisplay; 
+            window.location.href = callUrl;
+            textToDisplay += `<br><br><a href="${callUrl}" style="display:inline-block; padding:10px 15px; background:#4CAF50; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">📞 「${phoneNumber}」に発信する</a>`;
+          }
+
+          const openMatch = textToDisplay.match(/\[OPEN:(.*?)\]/);
+          if (openMatch) {
+            const siteUrl = openMatch[1].trim();
+            textToDisplay = textToDisplay.replace(/\[OPEN:.*?\]/g, '').trim();
+            textToSpeak = textToDisplay; 
+            window.open(siteUrl, '_blank');
+            textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold;">🌐 サイトを開く</a>`;
+          }
+
+          lastReplyText = textToSpeak;
+          statusBox.innerHTML = `<div class="ai-msg">AI：${textToDisplay}</div>` + statusBox.innerHTML;
+          
+          speakText(textToSpeak);
+        })
+        .catch((error) => {
+          const loadingEl = document.getElementById('loading');
+          if(loadingEl) loadingEl.remove();
+          statusBox.innerHTML = `<div class="ai-msg" style="color:red;">通信エラーが発生しました。</div>` + statusBox.innerHTML;
+          if(charImg) charImg.className = '';
+        });
+      }
+
+      function speakText(text) {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const cleanText = text.replace(/[\u{1f300}-\u{1f5ff}\u{1f600}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{2600}-\u{26ff}\u{2700}-\u{27bf}\u{1f900}-\u{1f9ff}\u{1fa70}-\u{1faff}\u{00a0}-\u{2600}]/gu, '');
+          const uttr = new SpeechSynthesisUtterance(cleanText);
+          uttr.lang = 'ja-JP';
+          uttr.rate = 1.1;
+          uttr.onstart = () => { if(charImg) charImg.className = 'speaking'; };
+          uttr.onend = () => { if(charImg) charImg.className = ''; };
+          uttr.onerror = () => { if(charImg) charImg.className = ''; };
+          window.speechSynthesis.speak(uttr);
+        } else {
+          if(charImg) charImg.className = '';
+        }
+      }
+    </script>
+  </body>
+</html>
