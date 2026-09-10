@@ -8,12 +8,14 @@
       body { font-family: sans-serif; padding: 15px; background-color: #f7f9fa; font-size: 16px; margin: 0; }
       .container { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; align-items: center;}
       
-      /* パスワード入力画面のスタイル */
-      #auth-screen { width: 100%; max-width: 400px; margin: 100px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; box-sizing: border-box; }
-      #auth-screen h2 { margin-bottom: 20px; color: #333; font-size: 20px; }
-      #pass-input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
-      #pass-btn { width: 100%; padding: 12px; border-radius: 8px; background-color: #4CAF50; color: white; border: none; font-size: 16px; cursor: pointer; }
-      #pass-error { color: red; font-size: 14px; margin-top: 10px; display: none; }
+      /* 認証画面のスタイル */
+      #auth-screen { width: 100%; max-width: 400px; margin: 80px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; box-sizing: border-box; }
+      #auth-screen h2 { margin-bottom: 15px; color: #333; font-size: 20px; }
+      #pass-input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
+      #pass-btn { width: 100%; padding: 12px; border-radius: 8px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; margin-bottom: 15px; }
+      .divider { margin: 15px 0; color: #888; font-size: 14px; position: relative; }
+      #voice-auth-btn { width: 100%; padding: 12px; border-radius: 8px; background-color: #4CAF50; color: white; border: none; font-size: 16px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+      #auth-status { margin-top: 15px; font-size: 14px; color: #d32f2f; font-weight: bold; }
 
       /* メインアプリ画面（最初は非表示） */
       #app-content { display: none; width: 100%; }
@@ -43,12 +45,20 @@
   </head>
   <body>
 
-    <!-- 合言葉入力画面 -->
+    <!-- 認証画面（テキスト入力 ＆ 音声入力の両対応） -->
     <div id="auth-screen">
-      <h2>🔒 合言葉を入力してください</h2>
+      <h2>🔒 合言葉認証</h2>
+      
+      <!-- テキスト入力エリア -->
       <input type="password" id="pass-input" placeholder="合言葉を入力...">
-      <button id="pass-btn">入室する</button>
-      <div id="pass-error">合言葉が違います</div>
+      <button id="pass-btn">テキストで入室</button>
+
+      <div class="divider">または</div>
+
+      <!-- 音声入力エリア -->
+      <button id="voice-auth-btn">🎤 声で合言葉を話して入室</button>
+      
+      <div id="auth-status"></div>
     </div>
 
     <!-- メインのチャットアプリ画面 -->
@@ -93,30 +103,65 @@
 
     <script>
       // ==========================================
-      // ★ ここに合言葉とGASのURLを設定します ★
+      // ★ 合言葉とGASのURLを設定してください ★
       // ==========================================
-      const CORRECT_PASS = "1166"; // 好きな合言葉に変更してください
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbz43C9vjEoTIq2Rwp8GQyVVr-g_gEgltRQcL7ELCwUdeUhI_KFOKDRnZcqchc2ekBlR/exec";
+      const CORRECT_PASS = "りんご"; // 共通の合言葉
+      const GAS_URL = "ここにデプロイしたGASのURLを貼り付ける";
 
-      // 合言葉の認証処理
       const authScreen = document.getElementById('auth-screen');
       const appContent = document.getElementById('app-content');
       const passInput = document.getElementById('pass-input');
       const passBtn = document.getElementById('pass-btn');
-      const passError = document.getElementById('pass-error');
+      const voiceAuthBtn = document.getElementById('voice-auth-btn');
+      const authStatus = document.getElementById('auth-status');
 
+      // 1. テキスト入力での認証
       passBtn.onclick = () => {
         if (passInput.value === CORRECT_PASS) {
           authScreen.style.display = 'none';
           appContent.style.display = 'flex';
         } else {
-          passError.style.display = 'block';
+          authStatus.innerText = "❌ 合言葉が違います";
         }
       };
 
       passInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') passBtn.click();
       });
+
+      // 2. 音声入力での認証
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        voiceAuthBtn.style.display = 'none'; // 非対応ブラウザでは音声ボタンを隠す
+      } else {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ja-JP';
+        recognition.interimResults = false;
+
+        voiceAuthBtn.onclick = () => {
+          authStatus.style.color = "#1565C0";
+          authStatus.innerText = "🎤 聞き取り中...";
+          recognition.start();
+        };
+
+        recognition.onresult = (event) => {
+          const spokenText = event.results[0][0].transcript.trim();
+          authStatus.style.color = "#d32f2f";
+
+          if (spokenText.includes(CORRECT_PASS)) {
+            authScreen.style.display = 'none';
+            appContent.style.display = 'flex';
+          } else {
+            authStatus.innerText = `❌ 不一致（認識：「${spokenText}」）`;
+          }
+        };
+
+        recognition.onerror = () => {
+          authStatus.style.color = "#d32f2f";
+          authStatus.innerText = "⚠️ 音声の認識に失敗しました。";
+        };
+      }
 
       // 以下、既存のアプリの処理
       const micBtn = document.getElementById('mic-btn');
