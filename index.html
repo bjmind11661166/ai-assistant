@@ -26,7 +26,6 @@
       @keyframes bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-10px); } }
       .controls { width: 100%; }
       
-      /* 自動会話モード用の切り替えボタン */
       #auto-mode-toggle { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; background-color: #9e9e9e; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; transition: background 0.3s;}
       
       #industry-select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; background: white; box-sizing: border-box;}
@@ -59,7 +58,6 @@
       </div>
 
       <div class="controls">
-        <!-- 自動会話モードボタン -->
         <button id="auto-mode-toggle">🎙️ 自動会話モード: OFF（押して開始）</button>
         
         <select id="industry-select">
@@ -88,13 +86,13 @@
           <button id="clear-file" style="margin-left: 10px; cursor: pointer; border:none; background:none; color:red; font-size: 16px;">❌</button>
         </div>
 
-        <div id="status" class="chat-box">待機中...「自動会話モード」をONにすると、話すだけで自動で会話が続きます。</div>
+        <div id="status" class="chat-box">待機中...</div>
       </div>
     </div>
 
     <script>
-      const CORRECT_PASS = "1166"; 
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbz43C9vjEoTIq2Rwp8GQyVVr-g_gEgltRQcL7ELCwUdeUhI_KFOKDRnZcqchc2ekBlR/exec";
+      const CORRECT_PASS = "りんご"; 
+      const GAS_URL = "ここにデプロイしたGASのURLを貼り付ける";
 
       const authScreen = document.getElementById('auth-screen');
       const appContent = document.getElementById('app-content');
@@ -114,19 +112,15 @@
       passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') passBtn.click(); });
 
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        voiceAuthBtn.style.display = 'none';
-      } else {
+      if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.lang = 'ja-JP';
         recognition.interimResults = false;
-
         voiceAuthBtn.onclick = () => {
           authStatus.style.color = "#1565C0";
           authStatus.innerText = "🎤 聞き取り中...";
           recognition.start();
         };
-
         recognition.onresult = (event) => {
           const spokenText = event.results[0][0].transcript.trim();
           if (spokenText.includes(CORRECT_PASS)) {
@@ -139,7 +133,6 @@
         };
       }
 
-      // アプリ本編のロジック
       const sendBtn = document.getElementById('send-btn');
       const textInput = document.getElementById('text-input');
       const statusBox = document.getElementById('status');
@@ -159,29 +152,39 @@
       let currentFile = null;
       let isAutoMode = false;
       let continuousRecognizer = null;
+      let isAiSpeaking = false; // AIが喋っているかどうかを管理するフラグ
 
       if (SpeechRecognition) {
         continuousRecognizer = new SpeechRecognition();
         continuousRecognizer.lang = 'ja-JP';
         continuousRecognizer.interimResults = false;
+        continuousRecognizer.continuous = false;
 
         continuousRecognizer.onresult = (event) => {
-          if (!isAutoMode) return;
+          // AIが話している最中、または自動モードOFFなら入力を無視
+          if (!isAutoMode || isAiSpeaking) return;
+          
           const speechText = event.results[0][0].transcript.trim();
+          
+          // AIが直前に話した内容と酷似している場合は、自分の声ではなくAIのスピーカー音を拾ったと判定して無視
+          if (speechText && lastReplyText && lastReplyText.includes(speechText)) {
+            return;
+          }
+
           if (speechText) {
             sendMessage(speechText, null, null);
           }
         };
 
         continuousRecognizer.onerror = () => {
-          if (isAutoMode) {
+          if (isAutoMode && !isAiSpeaking) {
             setTimeout(() => { try { continuousRecognizer.start(); } catch(e){} }, 1000);
           }
         };
 
         continuousRecognizer.onend = () => {
-          // AIが話しておらず、自動モードがONなら再度聞き取りを開始
-          if (isAutoMode && window.speechSynthesis && !window.speechSynthesis.speaking) {
+          // 自動モードONかつAIが喋っていない場合のみ、再度聞き取りを再開
+          if (isAutoMode && !isAiSpeaking && window.speechSynthesis && !window.speechSynthesis.speaking) {
             try { continuousRecognizer.start(); } catch(e){}
           }
         };
@@ -200,6 +203,7 @@
         } else {
           autoModeToggle.style.backgroundColor = "#9e9e9e";
           autoModeToggle.innerText = "🎙️ 自動会話モード: OFF（押して開始）";
+          isAiSpeaking = false;
           try { continuousRecognizer.stop(); } catch(e){}
         }
       };
@@ -245,7 +249,8 @@
       });
 
       function sendMessage(text, fileData, mimeType) {
-        // 音声認識中であれば一時停止
+        // 音声認識を一時停止し、AIが喋り出すフラグを立てる
+        isAiSpeaking = true;
         if (isAutoMode) { try { continuousRecognizer.stop(); } catch(e){} }
 
         if(charImg) charImg.className = 'thinking'; 
@@ -266,13 +271,13 @@
           if (!data.success) {
             statusBox.innerHTML = `<div class="ai-msg" style="color:red;">${data.error}</div>` + statusBox.innerHTML;
             if(charImg) charImg.className = '';
+            isAiSpeaking = false;
             return;
           }
           
           let textToDisplay = data.reply;
           let textToSpeak = data.reply;
 
-          // 各種コマンド処理
           const ytMatch = textToDisplay.match(/\[YOUTUBE:(.*?)\]/);
           if (ytMatch) {
             const keyword = ytMatch[1].trim();
@@ -280,7 +285,6 @@
             textToDisplay = textToDisplay.replace(/\[YOUTUBE:.*?\]/g, '').trim();
             textToSpeak = textToDisplay; 
             window.open(ytUrl, '_blank');
-            textToDisplay += `<br><br><a href="${ytUrl}" target="_blank" style="display:inline-block; padding:10px 15px; background:#FF0000; color:white; text-decoration:none; border-radius:8px;">▶️ YouTubeで見る</a>`;
           }
 
           const callMatch = textToDisplay.match(/\[CALL:(.*?)\]/);
@@ -309,6 +313,7 @@
           if(loadingEl) loadingEl.remove();
           statusBox.innerHTML = `<div class="ai-msg" style="color:red;">通信エラーが発生しました。</div>` + statusBox.innerHTML;
           if(charImg) charImg.className = '';
+          isAiSpeaking = false;
         });
       }
 
@@ -320,20 +325,32 @@
           uttr.lang = 'ja-JP';
           uttr.rate = 1.1;
           
-          uttr.onstart = () => { if(charImg) charImg.className = 'speaking'; };
+          uttr.onstart = () => { 
+            isAiSpeaking = true;
+            if(charImg) charImg.className = 'speaking'; 
+          };
+          
           uttr.onend = () => { 
             if(charImg) charImg.className = ''; 
-            // AIが話し終わったら、自動モードがONなら再度マイク入力を再開
-            if (isAutoMode) {
-              setTimeout(() => { try { continuousRecognizer.start(); } catch(e){} }, 500);
-            }
+            // AIが喋り終わって少し待ってから、リスニングを再開
+            setTimeout(() => {
+              isAiSpeaking = false;
+              if (isAutoMode) {
+                try { continuousRecognizer.start(); } catch(e){}
+              }
+            }, 800);
           };
+          
           uttr.onerror = () => { 
             if(charImg) charImg.className = ''; 
-            if (isAutoMode) { try { continuousRecognizer.start(); } catch(e){} }
+            isAiSpeaking = false;
+            if (isAutoMode) {
+              try { continuousRecognizer.start(); } catch(e){}
+            }
           };
           window.speechSynthesis.speak(uttr);
         } else {
+          isAiSpeaking = false;
           if(charImg) charImg.className = '';
         }
       }
