@@ -246,23 +246,23 @@
 
             trackerTask = setInterval(() => {
               if (isAiSpeaking) return;
-              const canvas = document.createElement('canvas');
               
-              // 画質は落とさず元のクリアな解像度を維持
-              canvas.width = cameraPreview.videoWidth || 320;
-              canvas.height = cameraPreview.videoHeight || 240;
-              const context = canvas.getContext('2d');
-              
-              if (canvas.width > 0 && canvas.height > 0) {
+              // 💡修正ポイント1：カメラ映像がロードされているか確認する
+              if (cameraPreview.readyState >= 2) {
+                const canvas = document.createElement('canvas');
+                
+                // 画質は落とさず元のクリアな解像度を維持
+                canvas.width = 320;
+                canvas.height = 240;
+                const context = canvas.getContext('2d');
+                
                 context.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
                 const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                tracker.track({
-                  data: imageData.data,
-                  width: canvas.width,
-                  height: canvas.height
-                });
+                
+                // 💡修正ポイント2：tracking.jsへの正しい引数の渡し方に修正
+                tracker.track(imageData.data, canvas.width, canvas.height);
               }
-            }, 500); // 💡チェック頻度のみ0.5秒間隔に高速化！
+            }, 800); // 💡チェック頻度を0.8秒間隔に高速化！
             
           } catch (err) {
             alert("カメラの起動に失敗しました。\n詳細: " + err.message);
