@@ -144,7 +144,6 @@
       const cameraPreview = document.getElementById('camera-preview');
       let isCameraMode = false;
       let trackerTask = null;
-      let faceTracker = null;
       let lastGreetTime = 0;
       const GREET_COOLDOWN = 30000; 
       
@@ -205,42 +204,34 @@
         }
       };
 
+      // 安定版：確実かつスピーディーに動作する画像サンプリング検知
       cameraModeToggle.onclick = async () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
           cameraModeToggle.style.backgroundColor = "#FF9800";
-          cameraModeToggle.innerText = "📷 カメラ接客モード: ON（顔を探しています...）";
+          cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢監視中";
           cameraPreview.style.display = 'block';
 
           try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-              video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 10, max: 15 } }, 
+              video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 } }, 
               audio: false 
             });
             cameraPreview.srcObject = stream;
-            
-            cameraPreview.onloadedmetadata = () => {
-              cameraPreview.play();
-              trackerTask = tracking.track('#camera-preview', faceTracker);
-            };
+            await cameraPreview.play();
 
-            faceTracker = new tracking.ObjectTracker('face');
-            faceTracker.setInitialScale(4);
-            faceTracker.setStepSize(8);
-            faceTracker.setEdgesDensity(0.1);
+            const tracker = new tracking.ObjectTracker('face');
+            tracker.setInitialScale(4);
+            tracker.setStepSize(4);
+            tracker.setEdgesDensity(0.1);
 
-            faceTracker.on('track', function(event) {
+            tracker.on('track', function(event) {
               if (event.data.length > 0) {
                 const now = Date.now();
                 if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
                   lastGreetTime = now;
                   
-                  if (trackerTask) {
-                    trackerTask.stop();
-                    trackerTask = null;
-                  }
-                  
-                  cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢対応中...";
+                  cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
                   statusBox.innerHTML = `<div class="system-msg">💡 センサー：お客様の顔を検知しました！</div>` + statusBox.innerHTML;
                   
                   speakText("いらっしゃいませ！");
@@ -250,9 +241,27 @@
                 }
               }
             });
+
+            trackerTask = setInterval(() => {
+              if (isAiSpeaking) return;
+              const canvas = document.createElement('canvas');
+              canvas.width = cameraPreview.videoWidth || 320;
+              canvas.height = cameraPreview.videoHeight || 240;
+              const context = canvas.getContext('2d');
+              
+              if (canvas.width > 0 && canvas.height > 0) {
+                context.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                tracker.track({
+                  data: imageData.data,
+                  width: canvas.width,
+                  height: canvas.height
+                });
+              }
+            }, 1500); // 1.5秒間隔で確実にチェック
             
           } catch (err) {
-            alert("カメラの起動に失敗しました。権限を確認してください。\n詳細: " + err.message);
+            alert("カメラの起動に失敗しました。\n詳細: " + err.message);
             isCameraMode = false;
             cameraModeToggle.style.backgroundColor = "#9e9e9e";
             cameraModeToggle.innerText = "📷 カメラ接客モード: OFF（押して顔検知開始）";
@@ -263,7 +272,7 @@
           cameraModeToggle.innerText = "📷 カメラ接客モード: OFF（押して開始）";
           cameraPreview.style.display = 'none';
 
-          if (trackerTask) { trackerTask.stop(); trackerTask = null; }
+          if (trackerTask) { clearInterval(trackerTask); trackerTask = null; }
           if (cameraPreview.srcObject) {
             cameraPreview.srcObject.getTracks().forEach(track => track.stop());
             cameraPreview.srcObject = null;
@@ -400,7 +409,7 @@
           const cleanText = text.replace(/[\u{1f300}-\u{1f5ff}\u{1f600}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{2600}-\u{26ff}\u{2700}-\u{27bf}\u{1f900}-\u{1f9ff}\u{1fa70}-\u{1faff}\u{00a0}-\u{2600}]/gu, '');
           const uttr = new SpeechSynthesisUtterance(cleanText);
           uttr.lang = 'ja-JP';
-          uttr.rate = 1.3; // パソコンでもキビキビと発話するように速度をアップ
+          uttr.rate = 1.3; // パソコンでもキビキビと発話する速度
           
           uttr.onstart = () => { 
             isAiSpeaking = true;
@@ -414,11 +423,8 @@
               if (isAutoMode) {
                 try { continuousRecognizer.start(); } catch(e){}
               }
-              if (isCameraMode && faceTracker && !trackerTask) {
-                try { 
-                  trackerTask = tracking.track('#camera-preview', faceTracker); 
-                  cameraModeToggle.innerText = "📷 カメラ接客モード: ON（顔を探しています...）";
-                } catch(e){}
+              if (isCameraMode) {
+                cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢監視中";
               }
             }, 1000);
           };
@@ -428,9 +434,6 @@
             isAiSpeaking = false;
             if (isAutoMode) {
               try { continuousRecognizer.start(); } catch(e){}
-            }
-            if (isCameraMode && faceTracker && !trackerTask) {
-              try { trackerTask = tracking.track('#camera-preview', faceTracker); } catch(e){}
             }
           };
           window.speechSynthesis.speak(uttr);
