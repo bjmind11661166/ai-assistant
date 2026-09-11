@@ -204,7 +204,7 @@
         }
       };
 
-      // 安定版：根本的なバグを修正し、最も敏感に顔を見つける設定
+      // 安定最速版：反応速度を限界まで高めた設定
       cameraModeToggle.onclick = async () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
@@ -222,9 +222,9 @@
 
             const tracker = new tracking.ObjectTracker('face');
             
-            // 💡 どんな距離の顔でも見つけやすくする、最も敏感な設定
+            // 💡 1回あたりの処理を重くしすぎず、確実に見つけるための最適バランス
             tracker.setInitialScale(1.5); 
-            tracker.setStepSize(1.5);
+            tracker.setStepSize(2.0); // 少しだけ粗くして1回の解析速度をUP
             tracker.setEdgesDensity(0.1);
 
             tracker.on('track', function(event) {
@@ -259,10 +259,10 @@
                 analyzeContext.drawImage(cameraPreview, 0, 0, analyzeCanvas.width, analyzeCanvas.height);
                 const imageData = analyzeContext.getImageData(0, 0, analyzeCanvas.width, analyzeCanvas.height);
                 
-                // 💡 【重要バグ修正】配列と幅・高さを「別々に」渡す正しい書き方
+                // 正しい引数の渡し方で高速トラッキング実行
                 tracker.track(imageData.data, analyzeCanvas.width, analyzeCanvas.height);
               }
-            }, 500); // 0.5秒間隔でサクサク確認
+            }, 200); // 💡 【限界突破】500ms(0.5秒)から200ms(0.2秒)間隔に変更。1秒に5回顔をチェックして即反応させます！
             
           } catch (err) {
             alert("カメラの起動に失敗しました。\n詳細: " + err.message);
