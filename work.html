@@ -145,7 +145,12 @@
       let isCameraMode = false;
       let trackerTask = null;
       let lastGreetTime = 0;
-      const GREET_COOLDOWN = 30000; 
+      const GREET_COOLDOWN = 10000; // 連続発動を防ぐ最低限の時間(10秒)
+      
+      // 💡 追加：同じ人が居座っているかを判定する変数
+      let isFacePresent = false; 
+      let lastFaceDetectTime = 0;
+      const FACE_DISAPPEAR_TIMEOUT = 3000; // 3秒間誰も映らなければ「いなくなった」とリセットする
       
       const fileBtn = document.getElementById('file-btn');
       const fileInput = document.getElementById('file-input');
@@ -204,7 +209,7 @@
         }
       };
 
-      // 安定最速版：反応速度を限界まで高めた設定
+      // 安定最速 ＆ 同一人物無視ロジック版
       cameraModeToggle.onclick = async () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
@@ -227,15 +232,20 @@
             tracker.setEdgesDensity(0.1);
 
             tracker.on('track', function(event) {
+              const now = Date.now();
+              
               if (event.data.length > 0) {
-                const now = Date.now();
-                if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
+                // 顔が見えている時間を更新
+                lastFaceDetectTime = now;
+                
+                // 💡 新しい人が来た（前回顔がなかった）場合のみ挨拶を実行
+                if (!isFacePresent && (now - lastGreetTime > GREET_COOLDOWN) && !isAiSpeaking) {
+                  isFacePresent = true; // 「人がいる状態」にする（これ以降は同じ人がいるとみなして無視する）
                   lastGreetTime = now;
                   
                   cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
                   statusBox.innerHTML = `<div class="system-msg">💡 センサー：お客様の顔を検知しました！</div>` + statusBox.innerHTML;
                   
-                  // 現在の時刻を取得して挨拶を切り替える
                   const hour = new Date().getHours();
                   let greetingMsg = "";
                   
@@ -247,17 +257,22 @@
                     greetingMsg = "こんばんは！";
                   }
                   
-                  // 画面表示や発声から「いらっしゃいませ」を削除し、時間帯の挨拶のみにする
                   speakText(greetingMsg);
                   
-                  // AIへのプロンプトでも「いらっしゃいませ」の使用を厳格に禁止する
                   const prompt = `目の前にお客様が来ました。親しみやすく、「${greetingMsg}」から始まる短い声かけをしてください。※「いらっしゃいませ」という言葉は絶対に使用しないでください。`;
                   sendMessage(prompt, null, null, true);
+                }
+              } else {
+                // 💡 顔が見えない状態が3秒（3000ms）続いたら、人が立ち去ったとみなしてリセットする
+                if (isFacePresent && (now - lastFaceDetectTime > FACE_DISAPPEAR_TIMEOUT)) {
+                  isFacePresent = false;
+                  if (cameraModeToggle.innerText.includes("検知")) {
+                    cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢監視中 (リセット完了)";
+                  }
                 }
               }
             });
 
-            // メモリを節約して高速に動かすための固定キャンバス
             const analyzeCanvas = document.createElement('canvas');
             analyzeCanvas.width = 320;
             analyzeCanvas.height = 240;
@@ -290,6 +305,7 @@
             cameraPreview.srcObject.getTracks().forEach(track => track.stop());
             cameraPreview.srcObject = null;
           }
+          isFacePresent = false; // モードをオフにしたらリセット
         }
       };
 
@@ -437,7 +453,8 @@
                 try { continuousRecognizer.start(); } catch(e){}
               }
               if (isCameraMode) {
-                cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢監視中";
+                // 顔がいる状態かいない状態かでボタンの表示を少し変える
+                if (!isFacePresent) cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢監視中";
               }
             }, 1000);
           };
