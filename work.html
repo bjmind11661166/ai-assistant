@@ -226,7 +226,7 @@
 
             faceTracker = new tracking.ObjectTracker('face');
             faceTracker.setInitialScale(4);
-            faceTracker.setStepSize(4);
+            faceTracker.setStepSize(8);
             faceTracker.setEdgesDensity(0.1);
 
             faceTracker.on('track', function(event) {
