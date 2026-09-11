@@ -28,7 +28,6 @@
       
       #auto-mode-toggle { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; background-color: #9e9e9e; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; transition: background 0.3s;}
       
-      #industry-select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; background: white; box-sizing: border-box;}
       .input-area { display: flex; gap: 10px; margin-bottom: 10px; }
       #file-btn { padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 20px;}
       #text-input { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
@@ -60,11 +59,6 @@
       <div class="controls">
         <button id="auto-mode-toggle">🎙️ 自動会話モード: OFF（押して開始）</button>
         
-        <select id="industry-select">
-  <option value="">業務・業界を選択（任意）</option>
-  <!-- 「〇〇」の部分を、いつも実行パネルに入力している業界名に書き換えてください -->
-  <option value="〇〇">〇〇</option>
-</select>        
         <div class="input-area">
           <button id="file-btn" title="写真やファイルを添付">📎</button>
           <input type="file" id="file-input" accept="image/*, application/pdf" style="display: none;">
@@ -131,7 +125,6 @@
       const statusBox = document.getElementById('status');
       const charImg = document.getElementById('character-image');
       const charWrap = document.getElementById('char-wrap');
-      const industrySelect = document.getElementById('industry-select');
       const autoModeToggle = document.getElementById('auto-mode-toggle');
       
       const fileBtn = document.getElementById('file-btn');
@@ -242,7 +235,7 @@
 
         fetch(GAS_URL, {
           method: 'POST',
-          body: JSON.stringify({ text: text, fileData: fileData, mimeType: mimeType, industry: industrySelect.value }),
+          body: JSON.stringify({ text: text, fileData: fileData, mimeType: mimeType }),
           redirect: 'follow'
         })
         .then(response => response.json())
@@ -289,7 +282,6 @@
             textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:block; text-align:center; padding:15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">🌐 タップしてサイトを開く</a>`;
           }
 
-     // 安全なメールのURLやGmailリンクを促す機能
           if (textToDisplay.includes("⚠️警告")) {
             textToDisplay = `<span style="color:red; font-weight:bold;">${textToDisplay}</span>`;
           }
@@ -347,4 +339,3 @@
     </script>
   </body>
 </html>
-
