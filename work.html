@@ -222,9 +222,8 @@
 
             const tracker = new tracking.ObjectTracker('face');
             
-            // 💡 1回あたりの処理を重くしすぎず、確実に見つけるための最適バランス
             tracker.setInitialScale(1.5); 
-            tracker.setStepSize(2.0); // 少しだけ粗くして1回の解析速度をUP
+            tracker.setStepSize(2.0); 
             tracker.setEdgesDensity(0.1);
 
             tracker.on('track', function(event) {
@@ -236,9 +235,9 @@
                   cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
                   statusBox.innerHTML = `<div class="system-msg">💡 センサー：お客様の顔を検知しました！</div>` + statusBox.innerHTML;
                   
-                  // 💡 現在の時刻を取得して挨拶を切り替える
+                  // 現在の時刻を取得して挨拶を切り替える
                   const hour = new Date().getHours();
-                  let greetingMsg = "いらっしゃいませ！";
+                  let greetingMsg = "";
                   
                   if (hour >= 5 && hour < 12) {
                     greetingMsg = "おはようございます！";
@@ -248,9 +247,11 @@
                     greetingMsg = "こんばんは！";
                   }
                   
+                  // 画面表示や発声から「いらっしゃいませ」を削除し、時間帯の挨拶のみにする
                   speakText(greetingMsg);
                   
-                  const prompt = `目の前にお客様が来店しました。親しみやすく、時間帯に合った短い挨拶と声かけをしてください。（例：${greetingMsg}何かお探しでしょうか？）`;
+                  // AIへのプロンプトでも「いらっしゃいませ」の使用を厳格に禁止する
+                  const prompt = `目の前にお客様が来ました。親しみやすく、「${greetingMsg}」から始まる短い声かけをしてください。※「いらっしゃいませ」という言葉は絶対に使用しないでください。`;
                   sendMessage(prompt, null, null, true);
                 }
               }
@@ -265,16 +266,12 @@
             trackerTask = setInterval(() => {
               if (isAiSpeaking) return;
               
-              // カメラ映像が準備できているか確認
               if (cameraPreview.readyState >= 2 && cameraPreview.videoWidth > 0) {
-                // 映像を解析用キャンバスに描画
                 analyzeContext.drawImage(cameraPreview, 0, 0, analyzeCanvas.width, analyzeCanvas.height);
                 const imageData = analyzeContext.getImageData(0, 0, analyzeCanvas.width, analyzeCanvas.height);
-                
-                // 正しい引数の渡し方で高速トラッキング実行
                 tracker.track(imageData.data, analyzeCanvas.width, analyzeCanvas.height);
               }
-            }, 200); // 💡 【限界突破】500ms(0.5秒)から200ms(0.2秒)間隔に変更。1秒に5回顔をチェックして即反応させます！
+            }, 200); 
             
           } catch (err) {
             alert("カメラの起動に失敗しました。\n詳細: " + err.message);
