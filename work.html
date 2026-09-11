@@ -143,7 +143,7 @@
       const cameraModeToggle = document.getElementById('camera-mode-toggle');
       const cameraPreview = document.getElementById('camera-preview');
       let isCameraMode = false;
-      let trackerTask = null;
+      let trackerTask = null; // tracking.jsの標準タスクを格納する変数
       let lastGreetTime = 0;
       const GREET_COOLDOWN = 30000; 
       
@@ -204,7 +204,7 @@
         }
       };
 
-      // 安定版：確実かつスピーディーに動作する画像サンプリング検知
+      // 安定版：tracking.jsの標準ネイティブ機能を使用した顔検知（一番確実で速い）
       cameraModeToggle.onclick = async () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
@@ -218,51 +218,39 @@
               audio: false 
             });
             cameraPreview.srcObject = stream;
-            await cameraPreview.play();
-
-            const tracker = new tracking.ObjectTracker('face');
             
-            // 確実に見つけられた元のパラメータを維持
-            tracker.setInitialScale(4);
-            tracker.setStepSize(4);
-            tracker.setEdgesDensity(0.1);
+            // ビデオのメタデータ（解像度など）が読み込まれてから処理を開始する
+            cameraPreview.onloadedmetadata = async () => {
+              await cameraPreview.play();
 
-            tracker.on('track', function(event) {
-              if (event.data.length > 0) {
-                const now = Date.now();
-                if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
-                  lastGreetTime = now;
-                  
-                  cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
-                  statusBox.innerHTML = `<div class="system-msg">💡 センサー：お客様の顔を検知しました！</div>` + statusBox.innerHTML;
-                  
-                  speakText("いらっしゃいませ！");
-                  
-                  const prompt = "目の前にお客様が来店しました。親しみやすく、短い挨拶と声かけをしてください。（例：いらっしゃいませ！何かお探しでしょうか？）";
-                  sendMessage(prompt, null, null, true);
-                }
-              }
-            });
-
-            trackerTask = setInterval(() => {
-              if (isAiSpeaking) return;
+              const tracker = new tracking.ObjectTracker('face');
               
-              // 💡修正ポイント1：カメラ映像がロードされているか確認する
-              if (cameraPreview.readyState >= 2) {
-                const canvas = document.createElement('canvas');
-                
-                // 画質は落とさず元のクリアな解像度を維持
-                canvas.width = 320;
-                canvas.height = 240;
-                const context = canvas.getContext('2d');
-                
-                context.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                
-                // 💡修正ポイント2：tracking.jsへの正しい引数の渡し方に修正
-                tracker.track(imageData.data, canvas.width, canvas.height);
-              }
-            }, 800); // 💡チェック頻度を0.8秒間隔に高速化！
+              // 検知しやすさを最優先にしたパラメータ
+              tracker.setInitialScale(2); // 遠くの小さな顔も検知対象にする
+              tracker.setStepSize(2);     // 隙間なく細かく探す
+              tracker.setEdgesDensity(0.1);
+
+              // 手動のCanvas処理を廃止し、tracking.jsの標準機能にビデオ要素を直接渡す
+              trackerTask = tracking.track('#camera-preview', tracker);
+
+              tracker.on('track', function(event) {
+                // 顔を検知した場合
+                if (event.data.length > 0) {
+                  const now = Date.now();
+                  if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
+                    lastGreetTime = now;
+                    
+                    cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
+                    statusBox.innerHTML = `<div class="system-msg">💡 センサー：お客様の顔を検知しました！</div>` + statusBox.innerHTML;
+                    
+                    speakText("いらっしゃいませ！");
+                    
+                    const prompt = "目の前にお客様が来店しました。親しみやすく、短い挨拶と声かけをしてください。（例：いらっしゃいませ！何かお探しでしょうか？）";
+                    sendMessage(prompt, null, null, true);
+                  }
+                }
+              });
+            };
             
           } catch (err) {
             alert("カメラの起動に失敗しました。\n詳細: " + err.message);
@@ -276,7 +264,10 @@
           cameraModeToggle.innerText = "📷 カメラ接客モード: OFF（押して開始）";
           cameraPreview.style.display = 'none';
 
-          if (trackerTask) { clearInterval(trackerTask); trackerTask = null; }
+          if (trackerTask) { 
+            trackerTask.stop(); // tracking.jsのネイティブタスクを停止
+            trackerTask = null; 
+          }
           if (cameraPreview.srcObject) {
             cameraPreview.srcObject.getTracks().forEach(track => track.stop());
             cameraPreview.srcObject = null;
