@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AI アシスタント</title>
+    
     <!-- 顔検知用の軽量ライブラリ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/tracking-min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/data/face-min.js"></script>
@@ -41,6 +42,7 @@
       #send-btn { padding: 12px 20px; border-radius: 8px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; }
       #clear-chat-btn { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ffcdd2; background-color: #ffebee; color: #d32f2f; font-size: 14px; cursor: pointer; }
       #file-preview { display: none; margin-bottom: 15px; font-size: 14px; color: #666; background: #e3f2fd; padding: 10px; border-radius: 8px; width: 100%; box-sizing: border-box;}
+      
       .chat-box { width: 100%; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; min-height: 200px; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; box-sizing: border-box;}
       .user-msg { color: #1565C0; font-weight: bold; margin-bottom: 10px; background: #e3f2fd; padding: 10px; border-radius: 8px;}
       .ai-msg { color: #333; margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 8px; cursor: pointer;}
@@ -138,13 +140,12 @@
       const charWrap = document.getElementById('char-wrap');
       const autoModeToggle = document.getElementById('auto-mode-toggle');
       
-      // カメラモード用の変数
       const cameraModeToggle = document.getElementById('camera-mode-toggle');
       const cameraPreview = document.getElementById('camera-preview');
       let isCameraMode = false;
       let trackerTask = null;
       let lastGreetTime = 0;
-      const GREET_COOLDOWN = 30000; // 連続反応を防ぐため、1度挨拶したら30秒間はお休み
+      const GREET_COOLDOWN = 30000; 
       
       const fileBtn = document.getElementById('file-btn');
       const fileInput = document.getElementById('file-input');
@@ -159,7 +160,6 @@
       let continuousRecognizer = null;
       let isAiSpeaking = false;
 
-      // 自動会話モード（音声認識）
       if (SpeechRecognition) {
         continuousRecognizer = new SpeechRecognition();
         continuousRecognizer.lang = 'ja-JP';
@@ -204,36 +204,49 @@
         }
       };
 
-      // カメラ接客モード（顔検知）
-      cameraModeToggle.onclick = () => {
+      cameraModeToggle.onclick = async () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
           cameraModeToggle.style.backgroundColor = "#FF9800";
           cameraModeToggle.innerText = "📷 カメラ接客モード: ON（顔を検知して挨拶）";
           cameraPreview.style.display = 'block';
 
-          const tracker = new tracking.ObjectTracker('face');
-          tracker.setInitialScale(4);
-          tracker.setStepSize(2);
-          tracker.setEdgesDensity(0.1);
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+            cameraPreview.srcObject = stream;
+            
+            cameraPreview.onloadedmetadata = () => {
+              cameraPreview.play();
+            };
 
-          tracker.on('track', function(event) {
-            if (event.data.length > 0) {
-              const now = Date.now();
-              if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
-                lastGreetTime = now;
-                
-                // 1. 即時アクション（無音時間をなくすための固定フレーズ）
-                speakText("いらっしゃいませ！");
-                
-                // 2. その直後にGeminiへ指示を出し、自然な接客を続けさせる
-                const prompt = "目の前にお客様が来店しました。親しみやすく、短い挨拶と声かけをしてください。（例：いらっしゃいませ！何かお探しでしょうか？）";
-                sendMessage(prompt, null, null, true);
+            const tracker = new tracking.ObjectTracker('face');
+            tracker.setInitialScale(4);
+            tracker.setStepSize(2);
+            tracker.setEdgesDensity(0.1);
+
+            tracker.on('track', function(event) {
+              if (event.data.length > 0) {
+                const now = Date.now();
+                if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
+                  lastGreetTime = now;
+                  
+                  speakText("いらっしゃいませ！");
+                  
+                  const prompt = "目の前にお客様が来店しました。親しみやすく、短い挨拶と声かけをしてください。（例：いらっしゃいませ！何かお探しでしょうか？）";
+                  sendMessage(prompt, null, null, true);
+                }
               }
-            }
-          });
+            });
 
-          trackerTask = tracking.track('#camera-preview', tracker, { camera: true });
+            trackerTask = tracking.track('#camera-preview', tracker);
+            
+          } catch (err) {
+            alert("カメラの起動に失敗しました。権限を確認してください。\n詳細: " + err.message);
+            isCameraMode = false;
+            cameraModeToggle.style.backgroundColor = "#9e9e9e";
+            cameraModeToggle.innerText = "📷 カメラ接客モード: OFF（押して顔検知開始）";
+            cameraPreview.style.display = 'none';
+          }
         } else {
           cameraModeToggle.style.backgroundColor = "#9e9e9e";
           cameraModeToggle.innerText = "📷 カメラ接客モード: OFF（押して開始）";
@@ -242,6 +255,7 @@
           if (trackerTask) trackerTask.stop();
           if (cameraPreview.srcObject) {
             cameraPreview.srcObject.getTracks().forEach(track => track.stop());
+            cameraPreview.srcObject = null;
           }
         }
       };
@@ -286,7 +300,6 @@
         if (e.key === 'Enter') sendBtn.click();
       });
 
-      // isSystemフラグを追加し、自動検知時の表示をスマートに調整
       function sendMessage(text, fileData, mimeType, isSystem) {
         isAiSpeaking = true;
         if (isAutoMode) { try { continuousRecognizer.stop(); } catch(e){} }
