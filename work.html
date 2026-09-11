@@ -143,7 +143,7 @@
       const cameraModeToggle = document.getElementById('camera-mode-toggle');
       const cameraPreview = document.getElementById('camera-preview');
       let isCameraMode = false;
-      let trackerTask = null; // tracking.jsの標準タスクを格納する変数
+      let trackerTask = null;
       let lastGreetTime = 0;
       const GREET_COOLDOWN = 30000; 
       
@@ -204,7 +204,7 @@
         }
       };
 
-      // 安定版：tracking.jsの標準ネイティブ機能を使用した顔検知（一番確実で速い）
+      // 安定版：根本的なバグを修正し、最も敏感に顔を見つける設定
       cameraModeToggle.onclick = async () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
@@ -218,39 +218,51 @@
               audio: false 
             });
             cameraPreview.srcObject = stream;
+            await cameraPreview.play();
+
+            const tracker = new tracking.ObjectTracker('face');
             
-            // ビデオのメタデータ（解像度など）が読み込まれてから処理を開始する
-            cameraPreview.onloadedmetadata = async () => {
-              await cameraPreview.play();
+            // 💡 どんな距離の顔でも見つけやすくする、最も敏感な設定
+            tracker.setInitialScale(1.5); 
+            tracker.setStepSize(1.5);
+            tracker.setEdgesDensity(0.1);
 
-              const tracker = new tracking.ObjectTracker('face');
-              
-              // 検知しやすさを最優先にしたパラメータ
-              tracker.setInitialScale(2); // 遠くの小さな顔も検知対象にする
-              tracker.setStepSize(2);     // 隙間なく細かく探す
-              tracker.setEdgesDensity(0.1);
-
-              // 手動のCanvas処理を廃止し、tracking.jsの標準機能にビデオ要素を直接渡す
-              trackerTask = tracking.track('#camera-preview', tracker);
-
-              tracker.on('track', function(event) {
-                // 顔を検知した場合
-                if (event.data.length > 0) {
-                  const now = Date.now();
-                  if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
-                    lastGreetTime = now;
-                    
-                    cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
-                    statusBox.innerHTML = `<div class="system-msg">💡 センサー：お客様の顔を検知しました！</div>` + statusBox.innerHTML;
-                    
-                    speakText("いらっしゃいませ！");
-                    
-                    const prompt = "目の前にお客様が来店しました。親しみやすく、短い挨拶と声かけをしてください。（例：いらっしゃいませ！何かお探しでしょうか？）";
-                    sendMessage(prompt, null, null, true);
-                  }
+            tracker.on('track', function(event) {
+              if (event.data.length > 0) {
+                const now = Date.now();
+                if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
+                  lastGreetTime = now;
+                  
+                  cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
+                  statusBox.innerHTML = `<div class="system-msg">💡 センサー：お客様の顔を検知しました！</div>` + statusBox.innerHTML;
+                  
+                  speakText("いらっしゃいませ！");
+                  
+                  const prompt = "目の前にお客様が来店しました。親しみやすく、短い挨拶と声かけをしてください。（例：いらっしゃいませ！何かお探しでしょうか？）";
+                  sendMessage(prompt, null, null, true);
                 }
-              });
-            };
+              }
+            });
+
+            // メモリを節約して高速に動かすための固定キャンバス
+            const analyzeCanvas = document.createElement('canvas');
+            analyzeCanvas.width = 320;
+            analyzeCanvas.height = 240;
+            const analyzeContext = analyzeCanvas.getContext('2d');
+
+            trackerTask = setInterval(() => {
+              if (isAiSpeaking) return;
+              
+              // カメラ映像が準備できているか確認
+              if (cameraPreview.readyState >= 2 && cameraPreview.videoWidth > 0) {
+                // 映像を解析用キャンバスに描画
+                analyzeContext.drawImage(cameraPreview, 0, 0, analyzeCanvas.width, analyzeCanvas.height);
+                const imageData = analyzeContext.getImageData(0, 0, analyzeCanvas.width, analyzeCanvas.height);
+                
+                // 💡 【重要バグ修正】配列と幅・高さを「別々に」渡す正しい書き方
+                tracker.track(imageData.data, analyzeCanvas.width, analyzeCanvas.height);
+              }
+            }, 500); // 0.5秒間隔でサクサク確認
             
           } catch (err) {
             alert("カメラの起動に失敗しました。\n詳細: " + err.message);
@@ -264,10 +276,7 @@
           cameraModeToggle.innerText = "📷 カメラ接客モード: OFF（押して開始）";
           cameraPreview.style.display = 'none';
 
-          if (trackerTask) { 
-            trackerTask.stop(); // tracking.jsのネイティブタスクを停止
-            trackerTask = null; 
-          }
+          if (trackerTask) { clearInterval(trackerTask); trackerTask = null; }
           if (cameraPreview.srcObject) {
             cameraPreview.srcObject.getTracks().forEach(track => track.stop());
             cameraPreview.srcObject = null;
