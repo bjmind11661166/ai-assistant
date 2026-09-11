@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AI アシスタント</title>
+    <!-- 顔検知用の軽量ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/tracking-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/data/face-min.js"></script>
+    
     <style>
       body { font-family: sans-serif; padding: 15px; background-color: #f7f9fa; font-size: 16px; margin: 0; }
       .container { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; align-items: center;}
@@ -26,7 +30,10 @@
       @keyframes bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-10px); } }
       .controls { width: 100%; }
       
-      #auto-mode-toggle { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; background-color: #9e9e9e; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; transition: background 0.3s;}
+      .mode-btn { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; transition: background 0.3s; }
+      #auto-mode-toggle { background-color: #9e9e9e; }
+      #camera-mode-toggle { background-color: #9e9e9e; }
+      #camera-preview { display: none; width: 100%; max-width: 320px; border-radius: 8px; margin: 0 auto 15px auto; border: 2px solid #ccc; }
       
       .input-area { display: flex; gap: 10px; margin-bottom: 10px; }
       #file-btn { padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 20px;}
@@ -37,6 +44,7 @@
       .chat-box { width: 100%; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; min-height: 200px; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; box-sizing: border-box;}
       .user-msg { color: #1565C0; font-weight: bold; margin-bottom: 10px; background: #e3f2fd; padding: 10px; border-radius: 8px;}
       .ai-msg { color: #333; margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 8px; cursor: pointer;}
+      .system-msg { background: #fff3e0; color: #e65100; font-weight: bold; margin-bottom: 10px; padding: 10px; border-radius: 8px;}
     </style>
   </head>
   <body>
@@ -57,7 +65,10 @@
       </div>
 
       <div class="controls">
-        <button id="auto-mode-toggle">🎙️ 自動会話モード: OFF（押して開始）</button>
+        <button id="auto-mode-toggle" class="mode-btn">🎙️ 自動会話モード: OFF（押して開始）</button>
+        <button id="camera-mode-toggle" class="mode-btn">📷 カメラ接客モード: OFF（押して顔検知開始）</button>
+        
+        <video id="camera-preview" width="320" height="240" autoplay muted playsinline></video>
         
         <div class="input-area">
           <button id="file-btn" title="写真やファイルを添付">📎</button>
@@ -127,6 +138,14 @@
       const charWrap = document.getElementById('char-wrap');
       const autoModeToggle = document.getElementById('auto-mode-toggle');
       
+      // カメラモード用の変数
+      const cameraModeToggle = document.getElementById('camera-mode-toggle');
+      const cameraPreview = document.getElementById('camera-preview');
+      let isCameraMode = false;
+      let trackerTask = null;
+      let lastGreetTime = 0;
+      const GREET_COOLDOWN = 30000; // 連続反応を防ぐため、1度挨拶したら30秒間はお休み
+      
       const fileBtn = document.getElementById('file-btn');
       const fileInput = document.getElementById('file-input');
       const filePreview = document.getElementById('file-preview');
@@ -140,6 +159,7 @@
       let continuousRecognizer = null;
       let isAiSpeaking = false;
 
+      // 自動会話モード（音声認識）
       if (SpeechRecognition) {
         continuousRecognizer = new SpeechRecognition();
         continuousRecognizer.lang = 'ja-JP';
@@ -150,7 +170,7 @@
           if (!isAutoMode || isAiSpeaking) return;
           const speechText = event.results[0][0].transcript.trim();
           if (speechText && lastReplyText && lastReplyText.includes(speechText)) return;
-          if (speechText) sendMessage(speechText, null, null);
+          if (speechText) sendMessage(speechText, null, null, false);
         };
 
         continuousRecognizer.onerror = () => {
@@ -184,6 +204,48 @@
         }
       };
 
+      // カメラ接客モード（顔検知）
+      cameraModeToggle.onclick = () => {
+        isCameraMode = !isCameraMode;
+        if (isCameraMode) {
+          cameraModeToggle.style.backgroundColor = "#FF9800";
+          cameraModeToggle.innerText = "📷 カメラ接客モード: ON（顔を検知して挨拶）";
+          cameraPreview.style.display = 'block';
+
+          const tracker = new tracking.ObjectTracker('face');
+          tracker.setInitialScale(4);
+          tracker.setStepSize(2);
+          tracker.setEdgesDensity(0.1);
+
+          tracker.on('track', function(event) {
+            if (event.data.length > 0) {
+              const now = Date.now();
+              if (now - lastGreetTime > GREET_COOLDOWN && !isAiSpeaking) {
+                lastGreetTime = now;
+                
+                // 1. 即時アクション（無音時間をなくすための固定フレーズ）
+                speakText("いらっしゃいませ！");
+                
+                // 2. その直後にGeminiへ指示を出し、自然な接客を続けさせる
+                const prompt = "目の前にお客様が来店しました。親しみやすく、短い挨拶と声かけをしてください。（例：いらっしゃいませ！何かお探しでしょうか？）";
+                sendMessage(prompt, null, null, true);
+              }
+            }
+          });
+
+          trackerTask = tracking.track('#camera-preview', tracker, { camera: true });
+        } else {
+          cameraModeToggle.style.backgroundColor = "#9e9e9e";
+          cameraModeToggle.innerText = "📷 カメラ接客モード: OFF（押して開始）";
+          cameraPreview.style.display = 'none';
+
+          if (trackerTask) trackerTask.stop();
+          if (cameraPreview.srcObject) {
+            cameraPreview.srcObject.getTracks().forEach(track => track.stop());
+          }
+        }
+      };
+
       clearChatBtn.onclick = () => {
         if (confirm("これまでの会話履歴を消去しますか？")) {
           statusBox.innerHTML = "待機中...";
@@ -209,12 +271,12 @@
           if (currentFile) {
             const reader = new FileReader();
             reader.onload = function(e) {
-              sendMessage(text, e.target.result.split(',')[1], currentFile.type);
+              sendMessage(text, e.target.result.split(',')[1], currentFile.type, false);
               clearFileBtn.click();
             };
             reader.readAsDataURL(currentFile);
           } else {
-            sendMessage(text, null, null);
+            sendMessage(text, null, null, false);
           }
           textInput.value = "";
         }
@@ -224,12 +286,20 @@
         if (e.key === 'Enter') sendBtn.click();
       });
 
-      function sendMessage(text, fileData, mimeType) {
+      // isSystemフラグを追加し、自動検知時の表示をスマートに調整
+      function sendMessage(text, fileData, mimeType, isSystem) {
         isAiSpeaking = true;
         if (isAutoMode) { try { continuousRecognizer.stop(); } catch(e){} }
 
         if(charImg) charImg.className = 'thinking'; 
-        const userHtml = `<div class="user-msg">あなた：${text}</div>`;
+        
+        let userHtml = "";
+        if (isSystem) {
+          userHtml = `<div class="system-msg">💡 センサー：お客様を検知しました</div>`;
+        } else {
+          userHtml = `<div class="user-msg">あなた：${text}</div>`;
+        }
+        
         const loadingHtml = `<div class="ai-msg" id="loading">AI：考え中...</div>`;
         statusBox.innerHTML = userHtml + loadingHtml + statusBox.innerHTML;
 
