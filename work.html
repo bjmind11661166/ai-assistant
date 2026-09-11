@@ -236,9 +236,21 @@
                   cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
                   statusBox.innerHTML = `<div class="system-msg">💡 センサー：お客様の顔を検知しました！</div>` + statusBox.innerHTML;
                   
-                  speakText("いらっしゃいませ！");
+                  // 💡 現在の時刻を取得して挨拶を切り替える
+                  const hour = new Date().getHours();
+                  let greetingMsg = "いらっしゃいませ！";
                   
-                  const prompt = "目の前にお客様が来店しました。親しみやすく、短い挨拶と声かけをしてください。（例：いらっしゃいませ！何かお探しでしょうか？）";
+                  if (hour >= 5 && hour < 12) {
+                    greetingMsg = "おはようございます！";
+                  } else if (hour >= 12 && hour < 17) {
+                    greetingMsg = "こんにちは！";
+                  } else {
+                    greetingMsg = "こんばんは！";
+                  }
+                  
+                  speakText(greetingMsg);
+                  
+                  const prompt = `目の前にお客様が来店しました。親しみやすく、時間帯に合った短い挨拶と声かけをしてください。（例：${greetingMsg}何かお探しでしょうか？）`;
                   sendMessage(prompt, null, null, true);
                 }
               }
