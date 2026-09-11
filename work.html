@@ -91,6 +91,9 @@
     </div>
 
     <script>
+      // 💡 端末がモバイル・タブレットかどうかを自動判定する
+      const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
       const CORRECT_PASS = "8548"; 
       const GAS_URL = "https://script.google.com/macros/s/AKfycbwm36hz3iHIySNmVRPPwGG2FAUza2pbxVgZi-XRpRpzrAV5eFdL-OSOtmy6o5WJy3f8/exec";
 
@@ -144,13 +147,13 @@
       const cameraPreview = document.getElementById('camera-preview');
       let isCameraMode = false;
       let trackerTask = null;
-      let lastGreetTime = 0;
-      const GREET_COOLDOWN = 10000; // 連続発動を防ぐ最低限の時間(10秒)
       
-      // 💡 追加：同じ人が居座っているかを判定する変数
+      let lastGreetTime = 0;
+      const GREET_COOLDOWN = 30000; 
+      
       let isFacePresent = false; 
       let lastFaceDetectTime = 0;
-      const FACE_DISAPPEAR_TIMEOUT = 3000; // 3秒間誰も映らなければ「いなくなった」とリセットする
+      const FACE_DISAPPEAR_TIMEOUT = 10000; 
       
       const fileBtn = document.getElementById('file-btn');
       const fileInput = document.getElementById('file-input');
@@ -209,7 +212,7 @@
         }
       };
 
-      // 安定最速 ＆ 同一人物無視ロジック版
+      // 安定最速 ＆ 端末による負荷最適化版
       cameraModeToggle.onclick = async () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
@@ -228,19 +231,18 @@
             const tracker = new tracking.ObjectTracker('face');
             
             tracker.setInitialScale(1.5); 
-            tracker.setStepSize(2.0); 
+            // 💡 タブレットなら少し粗く探して負荷を減らし、PCなら細かく探す
+            tracker.setStepSize(isMobileDevice ? 3.0 : 2.0); 
             tracker.setEdgesDensity(0.1);
 
             tracker.on('track', function(event) {
               const now = Date.now();
               
               if (event.data.length > 0) {
-                // 顔が見えている時間を更新
                 lastFaceDetectTime = now;
                 
-                // 💡 新しい人が来た（前回顔がなかった）場合のみ挨拶を実行
                 if (!isFacePresent && (now - lastGreetTime > GREET_COOLDOWN) && !isAiSpeaking) {
-                  isFacePresent = true; // 「人がいる状態」にする（これ以降は同じ人がいるとみなして無視する）
+                  isFacePresent = true; 
                   lastGreetTime = now;
                   
                   cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢お客様を検知！";
@@ -263,7 +265,6 @@
                   sendMessage(prompt, null, null, true);
                 }
               } else {
-                // 💡 顔が見えない状態が3秒（3000ms）続いたら、人が立ち去ったとみなしてリセットする
                 if (isFacePresent && (now - lastFaceDetectTime > FACE_DISAPPEAR_TIMEOUT)) {
                   isFacePresent = false;
                   if (cameraModeToggle.innerText.includes("検知")) {
@@ -278,15 +279,21 @@
             analyzeCanvas.height = 240;
             const analyzeContext = analyzeCanvas.getContext('2d');
 
+            // 💡 タブレットなら0.6秒間隔で処理落ちを防ぐ。PCなら0.2秒間隔で即座に反応。
+            const checkInterval = isMobileDevice ? 600 : 200;
+
             trackerTask = setInterval(() => {
-              if (isAiSpeaking) return;
+              if (isAiSpeaking) {
+                lastFaceDetectTime = Date.now();
+                return;
+              }
               
               if (cameraPreview.readyState >= 2 && cameraPreview.videoWidth > 0) {
                 analyzeContext.drawImage(cameraPreview, 0, 0, analyzeCanvas.width, analyzeCanvas.height);
                 const imageData = analyzeContext.getImageData(0, 0, analyzeCanvas.width, analyzeCanvas.height);
                 tracker.track(imageData.data, analyzeCanvas.width, analyzeCanvas.height);
               }
-            }, 200); 
+            }, checkInterval); 
             
           } catch (err) {
             alert("カメラの起動に失敗しました。\n詳細: " + err.message);
@@ -305,7 +312,7 @@
             cameraPreview.srcObject.getTracks().forEach(track => track.stop());
             cameraPreview.srcObject = null;
           }
-          isFacePresent = false; // モードをオフにしたらリセット
+          isFacePresent = false; 
         }
       };
 
@@ -438,7 +445,10 @@
           const cleanText = text.replace(/[\u{1f300}-\u{1f5ff}\u{1f600}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{2600}-\u{26ff}\u{2700}-\u{27bf}\u{1f900}-\u{1f9ff}\u{1fa70}-\u{1faff}\u{00a0}-\u{2600}]/gu, '');
           const uttr = new SpeechSynthesisUtterance(cleanText);
           uttr.lang = 'ja-JP';
-          uttr.rate = 1.3; // パソコンでもキビキビと発話する速度
+          
+          // 💡 音声の速度を端末で自動切り替え
+          // PCなら1.3倍速、タブレット/スマホなら1.05倍速（ほぼ標準）
+          uttr.rate = isMobileDevice ? 1.05 : 1.3; 
           
           uttr.onstart = () => { 
             isAiSpeaking = true;
@@ -453,7 +463,6 @@
                 try { continuousRecognizer.start(); } catch(e){}
               }
               if (isCameraMode) {
-                // 顔がいる状態かいない状態かでボタンの表示を少し変える
                 if (!isFacePresent) cameraModeToggle.innerText = "📷 カメラ接客モード: 🟢監視中";
               }
             }, 1000);
