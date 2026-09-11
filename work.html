@@ -67,7 +67,7 @@
       </div>
 
       <div class="controls">
-        <button id="auto-mode-toggle" class="mode-btn">🎙️ 自動会話モード: OFF（押して開始）</button>
+        <button id="auto-mode-toggle" class="mode-btn">🎙️ 自動会話モード: OFF（話しかけてください）</button>
         <button id="camera-mode-toggle" class="mode-btn">📷 カメラ接客モード: OFF（押して顔検知開始）</button>
         
         <video id="camera-preview" width="320" height="240" autoplay muted playsinline></video>
@@ -91,7 +91,6 @@
     </div>
 
     <script>
-      // 💡 端末がモバイル・タブレットかどうかを自動判定する
       const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
       const CORRECT_PASS = "8548"; 
@@ -178,7 +177,22 @@
           if (!isAutoMode || isAiSpeaking) return;
           const speechText = event.results[0][0].transcript.trim();
           if (speechText && lastReplyText && lastReplyText.includes(speechText)) return;
-          if (speechText) sendMessage(speechText, null, null, false);
+          
+          if (speechText) {
+            // 💡 「先輩」という言葉が含まれているかチェック
+            if (speechText.includes("先輩")) {
+              // 「先輩」より後ろのテキストを抽出する（例：「先輩今日の予定は？」 -> 「今日の予定は？」）
+              const parts = speechText.split("先輩");
+              const messageText = parts[1] ? parts[1].trim() : speechText;
+              
+              if (messageText) {
+                sendMessage(messageText, null, null, false);
+              }
+            } else {
+              // 「先輩」と言われていない場合は無視する
+              console.log("「先輩」と言われていないため無視しました:", speechText);
+            }
+          }
         };
 
         continuousRecognizer.onerror = () => {
@@ -202,7 +216,7 @@
         isAutoMode = !isAutoMode;
         if (isAutoMode) {
           autoModeToggle.style.backgroundColor = "#4CAF50";
-          autoModeToggle.innerText = "🟢 自動会話モード: ON（話しかけてください）";
+          autoModeToggle.innerText = "🟢 自動会話モード: ON（『先輩』と話しかけてください）";
           try { continuousRecognizer.start(); } catch(e){}
         } else {
           autoModeToggle.style.backgroundColor = "#9e9e9e";
@@ -212,7 +226,6 @@
         }
       };
 
-      // 安定最速 ＆ 端末による負荷最適化版
       cameraModeToggle.onclick = async () => {
         isCameraMode = !isCameraMode;
         if (isCameraMode) {
@@ -231,7 +244,6 @@
             const tracker = new tracking.ObjectTracker('face');
             
             tracker.setInitialScale(1.5); 
-            // 💡 タブレットなら少し粗く探して負荷を減らし、PCなら細かく探す
             tracker.setStepSize(isMobileDevice ? 3.0 : 2.0); 
             tracker.setEdgesDensity(0.1);
 
@@ -279,7 +291,6 @@
             analyzeCanvas.height = 240;
             const analyzeContext = analyzeCanvas.getContext('2d');
 
-            // 💡 タブレットなら0.6秒間隔で処理落ちを防ぐ。PCなら0.2秒間隔で即座に反応。
             const checkInterval = isMobileDevice ? 600 : 200;
 
             trackerTask = setInterval(() => {
@@ -445,9 +456,6 @@
           const cleanText = text.replace(/[\u{1f300}-\u{1f5ff}\u{1f600}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{2600}-\u{26ff}\u{2700}-\u{27bf}\u{1f900}-\u{1f9ff}\u{1fa70}-\u{1faff}\u{00a0}-\u{2600}]/gu, '');
           const uttr = new SpeechSynthesisUtterance(cleanText);
           uttr.lang = 'ja-JP';
-          
-          // 💡 音声の速度を端末で自動切り替え
-          // PCなら1.3倍速、タブレット/スマホなら1.05倍速（ほぼ標準）
           uttr.rate = isMobileDevice ? 1.05 : 1.3; 
           
           uttr.onstart = () => { 
