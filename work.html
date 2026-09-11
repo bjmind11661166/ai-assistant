@@ -34,6 +34,7 @@
       .mode-btn { width: 100%; font-size: 18px; padding: 15px; border-radius: 8px; color: white; border: none; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; transition: background 0.3s; }
       #auto-mode-toggle { background-color: #9e9e9e; }
       #camera-mode-toggle { background-color: #9e9e9e; }
+      #stop-speak-btn { background-color: #f44336; display: none; }
       #camera-preview { display: none; width: 100%; max-width: 320px; border-radius: 8px; margin: 0 auto 15px auto; border: 2px solid #ccc; }
       
       .input-area { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -61,13 +62,14 @@
     </div>
 
     <div class="container" id="app-content">
-      <div class="character-container" id="char-wrap" title="タップするともう一度喋ります">
+      <div class="character-container" id="char-wrap" title="タップするともう一度喋ります（または音声を止めます）">
         <img id="character-image" src="https://api.dicebear.com/7.x/bottts/svg?seed=Mentor" alt="AIキャラクター">
-        <div style="font-size: 12px; color: #666; margin-top: 5px;">👆タップで音声を再再生</div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">👆タップで音声の停止 / 再再生</div>
       </div>
 
       <div class="controls">
         <button id="auto-mode-toggle" class="mode-btn">🎙️ 自動会話モード: OFF（話しかけてください）</button>
+        <button id="stop-speak-btn" class="mode-btn">⏹️ 音声を止める</button>
         <button id="camera-mode-toggle" class="mode-btn">📷 カメラ接客モード: OFF（押して顔検知開始）</button>
         
         <video id="camera-preview" width="320" height="240" autoplay muted playsinline></video>
@@ -141,6 +143,7 @@
       const charImg = document.getElementById('character-image');
       const charWrap = document.getElementById('char-wrap');
       const autoModeToggle = document.getElementById('auto-mode-toggle');
+      const stopSpeakBtn = document.getElementById('stop-speak-btn');
       
       const cameraModeToggle = document.getElementById('camera-mode-toggle');
       const cameraPreview = document.getElementById('camera-preview');
@@ -167,6 +170,25 @@
       let continuousRecognizer = null;
       let isAiSpeaking = false;
 
+      // 音声を止める共通関数
+      function stopSpeaking() {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+        }
+        isAiSpeaking = false;
+        if(charImg) charImg.className = '';
+        stopSpeakBtn.style.display = 'none';
+
+        if (isAutoMode) {
+          try { continuousRecognizer.start(); } catch(e){}
+        }
+      }
+
+      stopSpeakBtn.onclick = () => {
+        stopSpeaking();
+        statusBox.innerHTML = `<div class="system-msg">⏹️ 音声を中断しました</div>` + statusBox.innerHTML;
+      };
+
       if (SpeechRecognition) {
         continuousRecognizer = new SpeechRecognition();
         continuousRecognizer.lang = 'ja-JP';
@@ -174,14 +196,13 @@
         continuousRecognizer.continuous = false;
 
         continuousRecognizer.onresult = (event) => {
+          stopSpeaking(); // ユーザーが話し始めたらAIの音声を即座に止める
           if (!isAutoMode || isAiSpeaking) return;
           const speechText = event.results[0][0].transcript.trim();
           if (speechText && lastReplyText && lastReplyText.includes(speechText)) return;
           
           if (speechText) {
-            // 💡 「先輩」という言葉が含まれているかチェック
             if (speechText.includes("先輩")) {
-              // 「先輩」より後ろのテキストを抽出する（例：「先輩今日の予定は？」 -> 「今日の予定は？」）
               const parts = speechText.split("先輩");
               const messageText = parts[1] ? parts[1].trim() : speechText;
               
@@ -189,7 +210,6 @@
                 sendMessage(messageText, null, null, false);
               }
             } else {
-              // 「先輩」と言われていない場合は無視する
               console.log("「先輩」と言われていないため無視しました:", speechText);
             }
           }
@@ -222,6 +242,7 @@
           autoModeToggle.style.backgroundColor = "#9e9e9e";
           autoModeToggle.innerText = "🎙️ 自動会話モード: OFF（押して開始）";
           isAiSpeaking = false;
+          stopSpeakBtn.style.display = 'none';
           try { continuousRecognizer.stop(); } catch(e){}
         }
       };
@@ -344,7 +365,16 @@
         }
       };
       clearFileBtn.onclick = () => { currentFile = null; fileInput.value = ""; filePreview.style.display = 'none'; };
-      charWrap.onclick = () => { if (lastReplyText) speakText(lastReplyText); };
+      
+      // キャラクタータップ：話している最中なら停止、そうでなければ再再生
+      charWrap.onclick = () => { 
+        if (isAiSpeaking) {
+          stopSpeaking();
+          statusBox.innerHTML = `<div class="system-msg">⏹️ 音声を中断しました</div>` + statusBox.innerHTML;
+        } else if (lastReplyText) {
+          speakText(lastReplyText); 
+        }
+      };
 
       sendBtn.onclick = () => {
         const text = textInput.value.trim();
@@ -368,7 +398,9 @@
       });
 
       function sendMessage(text, fileData, mimeType, isSystem) {
+        stopSpeaking(); // 新たに送信する際も直前の音声を止める
         isAiSpeaking = true;
+        stopSpeakBtn.style.display = 'block';
         if (isAutoMode) { try { continuousRecognizer.stop(); } catch(e){} }
 
         if(charImg) charImg.className = 'thinking'; 
@@ -397,6 +429,7 @@
             statusBox.innerHTML = `<div class="ai-msg" style="color:red;">${data.error}</div>` + statusBox.innerHTML;
             if(charImg) charImg.className = '';
             isAiSpeaking = false;
+            stopSpeakBtn.style.display = 'none';
             return;
           }
           
@@ -447,6 +480,7 @@
           statusBox.innerHTML = `<div class="ai-msg" style="color:red;">通信エラーが発生しました。</div>` + statusBox.innerHTML;
           if(charImg) charImg.className = '';
           isAiSpeaking = false;
+          stopSpeakBtn.style.display = 'none';
         });
       }
 
@@ -460,11 +494,13 @@
           
           uttr.onstart = () => { 
             isAiSpeaking = true;
+            stopSpeakBtn.style.display = 'block';
             if(charImg) charImg.className = 'speaking'; 
           };
           
           uttr.onend = () => { 
             if(charImg) charImg.className = ''; 
+            stopSpeakBtn.style.display = 'none';
             setTimeout(() => {
               isAiSpeaking = false;
               if (isAutoMode) {
@@ -479,6 +515,7 @@
           uttr.onerror = () => { 
             if(charImg) charImg.className = ''; 
             isAiSpeaking = false;
+            stopSpeakBtn.style.display = 'none';
             if (isAutoMode) {
               try { continuousRecognizer.start(); } catch(e){}
             }
@@ -486,6 +523,7 @@
           window.speechSynthesis.speak(uttr);
         } else {
           isAiSpeaking = false;
+          stopSpeakBtn.style.display = 'none';
           if(charImg) charImg.className = '';
         }
       }
