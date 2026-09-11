@@ -221,8 +221,10 @@
             await cameraPreview.play();
 
             const tracker = new tracking.ObjectTracker('face');
-            tracker.setInitialScale(2);
-            tracker.setStepSize(2);
+            
+            // 確実に見つけられた元のパラメータを維持
+            tracker.setInitialScale(4);
+            tracker.setStepSize(4);
             tracker.setEdgesDensity(0.1);
 
             tracker.on('track', function(event) {
@@ -245,8 +247,10 @@
             trackerTask = setInterval(() => {
               if (isAiSpeaking) return;
               const canvas = document.createElement('canvas');
-              canvas.width = 160;
-              canvas.height = 120;
+              
+              // 画質は落とさず元のクリアな解像度を維持
+              canvas.width = cameraPreview.videoWidth || 320;
+              canvas.height = cameraPreview.videoHeight || 240;
               const context = canvas.getContext('2d');
               
               if (canvas.width > 0 && canvas.height > 0) {
@@ -258,7 +262,7 @@
                   height: canvas.height
                 });
               }
-            }, 500); // 0.5秒間隔に変更し、お客様が来たらすぐに反応させる
+            }, 500); // 💡チェック頻度のみ0.5秒間隔に高速化！
             
           } catch (err) {
             alert("カメラの起動に失敗しました。\n詳細: " + err.message);
