@@ -179,8 +179,21 @@
         continuousRecognizer.onresult = (event) => {
           if (!isAutoMode || isAiSpeaking) return;
           const speechText = event.results[0][0].transcript.trim();
-          if (speechText && lastReplyText && lastReplyText.includes(speechText)) return;
-          if (speechText) sendMessage(speechText, null, null);
+          
+          // 【追加】「1166」が含まれているかチェックする（ウェイクワード機能）
+          const wakeWordRegex = /1166|１１６６|いちいちろくろく/;
+          if (!wakeWordRegex.test(speechText)) {
+            return; // 1166が含まれていない雑音や会話は無視する
+          }
+
+          // 【追加】合言葉（1166）をメッセージから取り除いて、純粋な質問だけを抽出
+          const finalMessage = speechText.replace(wakeWordRegex, '').trim();
+
+          // 万が一「1166」しか言わなかった場合は送信しない
+          if (!finalMessage) return;
+
+          if (finalMessage && lastReplyText && lastReplyText.includes(finalMessage)) return;
+          sendMessage(finalMessage, null, null);
         };
 
         continuousRecognizer.onerror = () => {
@@ -204,7 +217,8 @@
         isAutoMode = !isAutoMode;
         if (isAutoMode) {
           autoModeToggle.style.backgroundColor = "#4CAF50";
-          autoModeToggle.innerText = "🟢 自動会話モード: ON（話しかけてください）";
+          // わかりやすいようにボタンのテキストも少し変更しています
+          autoModeToggle.innerText = "🟢 自動会話モード: ON（「1166」の後に話しかけてください）";
           try { continuousRecognizer.start(); } catch(e){}
         } else {
           autoModeToggle.style.backgroundColor = "#9e9e9e";
