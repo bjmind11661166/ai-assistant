@@ -33,7 +33,11 @@
       #file-btn { padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 20px;}
       #text-input { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
       #send-btn { padding: 12px 20px; border-radius: 8px; background-color: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; }
+      
+      /* 読み上げ停止ボタンと履歴クリアボタン */
+      #stop-speech-btn { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ffb74d; background-color: #fff3e0; color: #e65100; font-size: 14px; cursor: pointer; font-weight: bold; }
       #clear-chat-btn { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ffcdd2; background-color: #ffebee; color: #d32f2f; font-size: 14px; cursor: pointer; }
+      
       #file-preview { display: none; margin-bottom: 15px; font-size: 14px; color: #666; background: #e3f2fd; padding: 10px; border-radius: 8px; width: 100%; box-sizing: border-box;}
       .chat-box { width: 100%; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; min-height: 200px; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; box-sizing: border-box;}
       .user-msg { color: #1565C0; font-weight: bold; margin-bottom: 10px; background: #e3f2fd; padding: 10px; border-radius: 8px;}
@@ -52,9 +56,9 @@
     </div>
 
     <div class="container" id="app-content">
-      <div class="character-container" id="char-wrap" title="タップするともう一度喋ります">
+      <div class="character-container" id="char-wrap" title="タップで音声を停止 / 再再生">
         <img id="character-image" src="https://api.dicebear.com/7.x/bottts/svg?seed=Mentor" alt="AIキャラクター">
-        <div style="font-size: 12px; color: #666; margin-top: 5px;">👆タップで音声を再再生</div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">👆タップで音声を停止 / 再再生</div>
       </div>
 
       <div class="controls">
@@ -79,6 +83,7 @@
           <button id="send-btn">送信</button>
         </div>
 
+        <button id="stop-speech-btn">⏹️ 読み上げを停止</button>
         <button id="clear-chat-btn">🗑️ トーク履歴をクリア</button>
 
         <div id="file-preview">
@@ -147,12 +152,23 @@
       const fileNameSpan = document.getElementById('file-name');
       const clearFileBtn = document.getElementById('clear-file');
       const clearChatBtn = document.getElementById('clear-chat-btn');
+      const stopSpeechBtn = document.getElementById('stop-speech-btn');
       
       let lastReplyText = "";
       let currentFile = null;
       let isAutoMode = false;
       let continuousRecognizer = null;
       let isAiSpeaking = false;
+
+      // --- 志望業界の保存・復元処理 ---
+      const savedIndustry = localStorage.getItem('selectedIndustry');
+      if (savedIndustry) {
+        industrySelect.value = savedIndustry;
+      }
+      industrySelect.addEventListener('change', (e) => {
+        localStorage.setItem('selectedIndustry', e.target.value);
+      });
+      // ---------------------------------
 
       if (SpeechRecognition) {
         continuousRecognizer = new SpeechRecognition();
@@ -198,6 +214,18 @@
         }
       };
 
+      // --- 読み上げ停止ボタンの処理 ---
+      stopSpeechBtn.onclick = () => {
+        if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+          window.speechSynthesis.cancel();
+          isAiSpeaking = false;
+          if(charImg) charImg.className = '';
+          if (isAutoMode) {
+            try { continuousRecognizer.start(); } catch(e){}
+          }
+        }
+      };
+
       clearChatBtn.onclick = () => {
         if (confirm("これまでの会話履歴を消去しますか？")) {
           statusBox.innerHTML = "待機中...";
@@ -215,7 +243,15 @@
         }
       };
       clearFileBtn.onclick = () => { currentFile = null; fileInput.value = ""; filePreview.style.display = 'none'; };
-      charWrap.onclick = () => { if (lastReplyText) speakText(lastReplyText); };
+      
+      // キャラクタータップ時の処理（再生中なら停止、停止中なら再再生）
+      charWrap.onclick = () => { 
+        if (window.speechSynthesis.speaking) {
+          stopSpeechBtn.click();
+        } else if (lastReplyText) {
+          speakText(lastReplyText); 
+        }
+      };
 
       sendBtn.onclick = () => {
         const text = textInput.value.trim();
@@ -296,7 +332,6 @@
             textToDisplay += `<br><br><a href="${siteUrl}" target="_blank" style="display:block; text-align:center; padding:15px; background:#9C27B0; color:white; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">🌐 タップしてサイトを開く</a>`;
           }
 
-     // 安全なメールのURLやGmailリンクを促す機能
           if (textToDisplay.includes("⚠️警告")) {
             textToDisplay = `<span style="color:red; font-weight:bold;">${textToDisplay}</span>`;
           }
@@ -317,7 +352,7 @@
 
       function speakText(text) {
         if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
+          window.speechSynthesis.cancel(); // 連続再生時の重複防止
           const cleanText = text.replace(/[\u{1f300}-\u{1f5ff}\u{1f600}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{2600}-\u{26ff}\u{2700}-\u{27bf}\u{1f900}-\u{1f9ff}\u{1fa70}-\u{1faff}\u{00a0}-\u{2600}]/gu, '');
           const uttr = new SpeechSynthesisUtterance(cleanText);
           uttr.lang = 'ja-JP';
