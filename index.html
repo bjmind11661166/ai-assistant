@@ -99,6 +99,10 @@
       const CORRECT_PASS = "1166"; 
       const GAS_URL = "https://script.google.com/macros/s/AKfycbxoxrx6C_G9-4GWi_aZJNo4Av6QBrMQ7e47ooM_YCL9ehZKl-AwPH0owIvEmyscq7pn/exec";
 
+      // --- デバイス判定（PCかスマホ・タブレットか） ---
+      const isMobileOrTablet = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+      const isDesktop = !isMobileOrTablet;
+
       const authScreen = document.getElementById('auth-screen');
       const appContent = document.getElementById('app-content');
       const passInput = document.getElementById('pass-input');
@@ -180,16 +184,13 @@
           if (!isAutoMode || isAiSpeaking) return;
           const speechText = event.results[0][0].transcript.trim();
           
-          // 【追加】「1166」が含まれているかチェックする（ウェイクワード機能）
           const wakeWordRegex = /1166|１１６６|いちいちろくろく/;
           if (!wakeWordRegex.test(speechText)) {
-            return; // 1166が含まれていない雑音や会話は無視する
+            return; 
           }
 
-          // 【追加】合言葉（1166）をメッセージから取り除いて、純粋な質問だけを抽出
           const finalMessage = speechText.replace(wakeWordRegex, '').trim();
 
-          // 万が一「1166」しか言わなかった場合は送信しない
           if (!finalMessage) return;
 
           if (finalMessage && lastReplyText && lastReplyText.includes(finalMessage)) return;
@@ -217,7 +218,6 @@
         isAutoMode = !isAutoMode;
         if (isAutoMode) {
           autoModeToggle.style.backgroundColor = "#4CAF50";
-          // わかりやすいようにボタンのテキストも少し変更しています
           autoModeToggle.innerText = "🟢 自動会話モード: ON（「1166」の後に話しかけてください）";
           try { continuousRecognizer.start(); } catch(e){}
         } else {
@@ -228,7 +228,6 @@
         }
       };
 
-      // --- 読み上げ停止ボタンの処理 ---
       stopSpeechBtn.onclick = () => {
         if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
           window.speechSynthesis.cancel();
@@ -258,7 +257,6 @@
       };
       clearFileBtn.onclick = () => { currentFile = null; fileInput.value = ""; filePreview.style.display = 'none'; };
       
-      // キャラクタータップ時の処理（再生中なら停止、停止中なら再再生）
       charWrap.onclick = () => { 
         if (window.speechSynthesis.speaking) {
           stopSpeechBtn.click();
@@ -299,6 +297,9 @@
 
         fetch(GAS_URL, {
           method: 'POST',
+          headers: {
+            "Content-Type": "text/plain" // CORS対策の継続
+          },
           body: JSON.stringify({ text: text, fileData: fileData, mimeType: mimeType, industry: industrySelect.value }),
           redirect: 'follow'
         })
@@ -366,11 +367,13 @@
 
       function speakText(text) {
         if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel(); // 連続再生時の重複防止
+          window.speechSynthesis.cancel(); 
           const cleanText = text.replace(/[\u{1f300}-\u{1f5ff}\u{1f600}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{2600}-\u{26ff}\u{2700}-\u{27bf}\u{1f900}-\u{1f9ff}\u{1fa70}-\u{1faff}\u{00a0}-\u{2600}]/gu, '');
           const uttr = new SpeechSynthesisUtterance(cleanText);
           uttr.lang = 'ja-JP';
-          uttr.rate = 1.1;
+          
+          // PCの場合は話すスピードを速める（1.5）、スマホ・タブレットは維持（1.1）
+          uttr.rate = isDesktop ? 1.5 : 1.1; 
           
           uttr.onstart = () => { 
             isAiSpeaking = true;
@@ -379,12 +382,16 @@
           
           uttr.onend = () => { 
             if(charImg) charImg.className = ''; 
+            
+            // PCの場合は発話後の待機時間を短くして反応を早める、スマホ・タブレットは維持
+            const delay = isDesktop ? 200 : 800;
+            
             setTimeout(() => {
               isAiSpeaking = false;
               if (isAutoMode) {
                 try { continuousRecognizer.start(); } catch(e){}
               }
-            }, 800);
+            }, delay);
           };
           
           uttr.onerror = () => { 
